@@ -82,17 +82,12 @@ export class AppView {
               <article class="incoming-message" data-testid="incoming-email">
                 ${scenario.body.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join('')}
               </article>
-              <section class="reply-brief" data-testid="reply-brief" aria-labelledby="reply-brief-title">
-                <div id="reply-brief-title" class="reply-brief-title">HOW TO REPLY</div>
-                <p>Write a normal professional response of at least ${DEFAULT_SEND_WORD_MINIMUM} words. Make sure you answer all three points:</p>
-                <ol>${scenario.matters.map((matter) => `<li>${escapeHtml(matter.prompt)}</li>`).join('')}</ol>
-              </section>
               <div class="reply-divider"><span>YOUR REPLY</span><span>Plain Text</span></div>
               <textarea
                 id="reply-editor"
                 data-testid="reply-editor"
                 aria-label="Email reply"
-                aria-describedby="reply-brief-title word-requirement"
+                aria-describedby="word-requirement"
                 autocomplete="off"
                 autocapitalize="off"
                 autocorrect="off"

@@ -77,12 +77,13 @@ for (const viewport of PHONE_VIEWPORTS) {
 
     await startButton.click();
 
-    const replyBrief = page.getByTestId('reply-brief');
+    const incomingEmail = page.getByTestId('incoming-email');
     const editor = page.getByTestId('reply-editor');
     const sendButton = page.getByTestId('send-email');
     await expect(page.getByTestId('compose-screen')).toBeVisible();
-    await expect(replyBrief).toBeVisible();
-    await expect(replyBrief.locator('li')).toHaveCount(3);
+    await expect(page.getByTestId('reply-brief')).toHaveCount(0);
+    await expect(incomingEmail).toBeVisible();
+    await expectWithinViewport(page, incomingEmail);
     await expect(editor).toBeVisible();
     await expectWithinViewport(page, editor);
     expect((await editor.boundingBox())?.height).toBeGreaterThanOrEqual(180);

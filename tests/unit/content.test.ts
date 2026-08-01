@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { INBOX_MESSAGES } from '../../src/data/inbox';
 import { SCENARIOS } from '../../src/data/scenarios';
+import { detectCoverage } from '../../src/game/evaluation';
 
 describe('authored game content', () => {
   it('ships ten structurally complete, uniquely identified scenarios', () => {
@@ -16,6 +17,7 @@ describe('authored game content', () => {
         scenario.matters.map((matter) => matter.id).sort(),
       );
       expect(scenario.matters.every((matter) => matter.keywordGroups.length > 0)).toBe(true);
+      expect(detectCoverage(scenario, scenario.body.join('\n'))).toEqual([true, true, true]);
     }
   });
 

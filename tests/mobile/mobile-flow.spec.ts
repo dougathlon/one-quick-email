@@ -28,7 +28,8 @@ test('keeps the touch-driven email path usable at the exact phone viewport', asy
   const editor = page.getByTestId('reply-editor');
   const send = page.getByTestId('send-email');
   await expect(compose).toBeVisible();
-  await expect(page.getByTestId('reply-brief').locator('li')).toHaveCount(3);
+  await expect(page.getByTestId('reply-brief')).toHaveCount(0);
+  await expect(page.getByTestId('incoming-email')).toBeVisible();
   await expectInsideViewport(page, send);
   await expectNoDesktopBlocker(page);
   await expectNoHorizontalOverflow(page);

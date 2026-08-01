@@ -102,17 +102,12 @@ async function preventedEvents(editor: Locator, eventTypes: readonly string[]): 
 
 test('loads the title screen and starts a deterministic email scenario', async ({ page }) => {
   const scenarioId = await startScenario(page, 'load-and-start');
-  const replyBrief = page.getByTestId('reply-brief');
 
   expect(scenarioId.length).toBeGreaterThan(0);
   await expect(page.getByTestId('incoming-email').locator('p')).toHaveCount(4);
-  await expect(replyBrief).toBeVisible();
-  await expect(replyBrief.locator('#reply-brief-title')).toHaveText('HOW TO REPLY');
-  await expect(replyBrief.locator('p')).toContainText('at least 100 words');
-  await expect(replyBrief.locator('p')).toContainText('answer all three points');
-  await expect(replyBrief.locator('ol > li')).toHaveCount(3);
-  const matterPrompts = await replyBrief.locator('ol > li').allTextContents();
-  expect(matterPrompts.every((prompt) => prompt.trim().length > 0)).toBe(true);
+  await expect(page.getByTestId('reply-brief')).toHaveCount(0);
+  await expect(page.getByText('HOW TO REPLY')).toHaveCount(0);
+  await expect(page.getByTestId('reply-editor')).toHaveAttribute('aria-describedby', 'word-requirement');
   await expect(page.getByTestId('word-count')).toHaveText('0 words');
   await expect(page.getByTestId('word-requirement')).toHaveText('100 words required');
   await expect(page.getByTestId('send-email')).toBeDisabled();
