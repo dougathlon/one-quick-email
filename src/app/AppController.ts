@@ -22,7 +22,7 @@ import {
 import { AppView } from '../ui/AppView';
 
 const LAST_SCENARIO_KEY = 'one-quick-email:last-scenario';
-const REPLY_DELAY_MS = 12_000;
+const REPLY_DELAY_MS = 6_000;
 
 const MINI_GAMES: readonly MiniGameId[] = [
   'calendar-collision',
@@ -149,7 +149,13 @@ export class AppController {
 
   private renderCompose(): void {
     const scenario = this.requireScenario();
-    this.editor = this.view.renderCompose(scenario, this.state.draft, this.state.wordCount, this.audio.isMuted);
+    this.editor = this.view.renderCompose(
+      scenario,
+      this.state.draft,
+      this.state.wordCount,
+      INBOX_MESSAGES.length,
+      this.audio.isMuted,
+    );
     this.removeEditorGuards = attachEditorGuards(this.editor);
     this.editor.addEventListener('beforeinput', this.handleEditorBeforeInput);
     this.editor.addEventListener('input', this.handleEditorInput);

@@ -120,6 +120,10 @@ export class HoldMusicHeroScene extends BaseMiniGameScene {
     this.waveform.strokePath();
   }
 
+  protected onPlayStarted(): void {
+    this.refreshTiles();
+  }
+
   private enter(direction: Direction): void {
     if (!this.isPlaying) return;
     const expected = this.sequence[this.entered];

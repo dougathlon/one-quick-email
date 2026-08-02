@@ -7,7 +7,7 @@ export const PHONE_TRANSFER: MiniGameDefinition = {
   id: 'phone-transfer',
   sceneKey: 'mini-game-phone-transfer',
   title: 'Phone Transfer',
-  instruction: 'Tap or click connectors to rotate them. Arrow keys select; SPACE rotates.',
+  instruction: 'Tap connectors to rotate. Use ← → to select and ↑ ↓ or SPACE to rotate.',
   durationMs: 7_000,
   theme: {
     background: 0x08172a,
@@ -57,8 +57,8 @@ export class PhoneTransferScene extends BaseMiniGameScene {
 
     const callerX = this.isPortrait ? 72 : 205;
     const callerY = this.isPortrait ? 430 : 355;
-    const extensionX = this.isPortrait ? 450 : 1040;
-    const extensionY = this.isPortrait ? 930 : 675;
+    const extensionX = this.isPortrait ? 435 : 1040;
+    const extensionY = this.isPortrait ? 1040 : 675;
     this.addPanel(callerX, callerY, this.isPortrait ? 100 : 130, this.isPortrait ? 120 : 130, PALETTE.cyan);
     this.addText(callerX, callerY - 30, 'CALLER', this.isPortrait ? 16 : 19, '#14213d').setOrigin(0.5);
     this.addText(callerX, callerY + 22, '☎', this.isPortrait ? 40 : 48, '#14213d').setOrigin(0.5);
@@ -66,14 +66,19 @@ export class PhoneTransferScene extends BaseMiniGameScene {
     this.addText(extensionX, extensionY - 28, 'EXTENSION', this.isPortrait ? 22 : 19, '#14213d').setOrigin(0.5);
     this.addText(extensionX, extensionY + 30, '204', this.isPortrait ? 38 : 35, '#14213d').setOrigin(0.5);
 
+    const finalLink = this.isPortrait
+      ? this.add.rectangle(435, 934, 18, 62, PALETTE.blue)
+      : this.add.rectangle(906, 675, 48, 18, PALETTE.blue);
+    this.gameLayer.add(finalLink);
+
     const connectorLayout: ReadonlyArray<readonly [number, number, ConnectorKind, number]> = this.isPortrait
       ? [
           [175, 430, 'straight', 0],
           [305, 430, 'corner', 1],
           [305, 570, 'straight', 1],
           [305, 710, 'corner', 3],
-          [435, 710, 'straight', 0],
-          [545, 710, 'straight', 0],
+          [435, 710, 'corner', 1],
+          [435, 850, 'straight', 1],
         ]
       : CONNECTOR_LAYOUT;
     connectorLayout.forEach(([x, y, kind, required], index) => {
@@ -122,7 +127,12 @@ export class PhoneTransferScene extends BaseMiniGameScene {
         this.selectedIndex = (this.selectedIndex + 1) % this.connectors.length;
         this.refreshSelection();
         event.preventDefault();
-      } else if (event.code === 'Space' || event.key === 'Enter' || event.key === 'ArrowUp') {
+      } else if (
+        event.code === 'Space'
+        || event.key === 'Enter'
+        || event.key === 'ArrowUp'
+        || event.key === 'ArrowDown'
+      ) {
         this.rotateSelected();
         event.preventDefault();
       }

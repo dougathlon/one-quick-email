@@ -114,26 +114,27 @@ export class ExpenseTriageScene extends BaseMiniGameScene {
       }).setOrigin(0.5);
       receiptContainer.add([paper, heading, detail]);
       receiptContainer.setSize(this.isPortrait ? 250 : 235, this.isPortrait ? 170 : 155)
-        .setInteractive({ useHandCursor: true, draggable: true });
-      this.input.setDraggable(receiptContainer);
+        .setInteractive({ useHandCursor: true });
       this.gameLayer.add(receiptContainer);
 
       const receipt: Receipt = { category, container: receiptContainer, homeX, homeY, filed: false };
       this.receipts.push(receipt);
-      this.listen(receiptContainer, Phaser.Input.Events.DRAG_START, () => {
-        if (!this.isPlaying || receipt.filed) return;
-        this.gameLayer.bringToTop(receiptContainer);
-        receiptContainer.angle = 0;
+      this.enableDirectPointerDrag(receiptContainer, {
+        start: () => {
+          if (receipt.filed) return;
+          this.gameLayer.bringToTop(receiptContainer);
+          receiptContainer.angle = 0;
+        },
+        move: (pointer) => {
+          if (receipt.filed) return;
+          const local = this.pointerToGame(pointer);
+          receiptContainer.setPosition(
+            Phaser.Math.Clamp(local.x, 40, this.viewWidth - 40),
+            Phaser.Math.Clamp(local.y, 280, this.viewHeight - 60),
+          );
+        },
+        end: () => this.fileReceipt(receipt),
       });
-      this.listen(receiptContainer, Phaser.Input.Events.DRAG, (pointer) => {
-        if (!this.isPlaying || receipt.filed) return;
-        const local = this.pointerToGame(pointer as Phaser.Input.Pointer);
-        receiptContainer.setPosition(
-          Phaser.Math.Clamp(local.x, 40, this.viewWidth - 40),
-          Phaser.Math.Clamp(local.y, 280, this.viewHeight - 60),
-        );
-      });
-      this.listen(receiptContainer, Phaser.Input.Events.DRAG_END, () => this.fileReceipt(receipt));
     });
   }
 

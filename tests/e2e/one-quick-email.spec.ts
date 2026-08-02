@@ -111,6 +111,7 @@ test('loads the title screen and starts a deterministic email scenario', async (
   await expect(page.getByTestId('word-count')).toHaveText('0 words');
   await expect(page.getByTestId('word-requirement')).toHaveText('100 words required');
   await expect(page.getByTestId('send-email')).toBeDisabled();
+  await expect(page.locator('#compose-inbox-count')).toHaveText('(117)');
 });
 
 test('allows typing and Backspace while blocking paste, copy, cut, undo, and redo', async ({ page }) => {
@@ -288,7 +289,7 @@ test('waits for a held Quick Question key to be released before restoring editor
   })).toEqual([caret, caret]);
 });
 
-test('starts with 117 background messages and inserts the marked recipient reply after twelve seconds', async ({ page }) => {
+test('shows the same 117-message inbox without scrolling and inserts the marked reply after six seconds', async ({ page }) => {
   await startScenario(page, 'real-reply-delay');
   const sentAt = await sendReadyDraft(page);
 
@@ -300,10 +301,25 @@ test('starts with 117 background messages and inserts the marked recipient reply
   await expect(page.locator('#inbox-total')).toHaveText('117');
   await expect(recipientReply).toHaveCount(0);
 
-  const timeUntilPreDeliveryCheck = Math.max(0, 10_750 - (Date.now() - sentAt));
+  const messageList = page.getByTestId('message-list');
+  const initialScrollState = await messageList.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    scrollTop: element.scrollTop,
+    overflowY: getComputedStyle(element).overflowY,
+  }));
+  expect(initialScrollState.scrollHeight).toBeGreaterThan(initialScrollState.clientHeight);
+  expect(initialScrollState.scrollTop).toBe(0);
+  expect(initialScrollState.overflowY).toBe('hidden');
+  await messageList.hover();
+  await page.mouse.wheel(0, 900);
+  await page.waitForTimeout(100);
+  expect(await messageList.evaluate((element) => element.scrollTop)).toBe(0);
+
+  const timeUntilPreDeliveryCheck = Math.max(0, 5_250 - (Date.now() - sentAt));
   await page.waitForTimeout(timeUntilPreDeliveryCheck);
   await expect(recipientReply).toHaveCount(0);
-  await expect(recipientReply).toHaveCount(1, { timeout: 3_000 });
+  await expect(recipientReply).toHaveCount(1, { timeout: 2_000 });
   await expect(recipientReply.locator('.reply-marker')).toHaveText('REPLY TO YOUR SENT EMAIL');
   await expect(backgroundRows).toHaveCount(117);
   await expect(page.getByTestId('message-list').getByRole('listitem')).toHaveCount(118);

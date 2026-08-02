@@ -80,16 +80,23 @@ export class QuickQuestionScene extends BaseMiniGameScene {
         Phaser.Math.Clamp(local.y, this.arenaBounds.top, this.arenaBounds.bottom),
       );
     };
-    this.listen(arena, Phaser.Input.Events.POINTER_DOWN, (pointer) => {
-      moveMarkerToPointer(pointer as Phaser.Input.Pointer);
-    });
-    this.listen(arena, Phaser.Input.Events.POINTER_MOVE, (pointer) => {
-      if (!this.isPlaying || !(pointer as Phaser.Input.Pointer).isDown) return;
-      moveMarkerToPointer(pointer as Phaser.Input.Pointer);
+    this.enableDirectPointerDrag(arena, {
+      move: moveMarkerToPointer,
     });
 
     this.onKey('keydown', (event) => this.setMovement(event, true));
     this.onKey('keyup', (event) => this.setMovement(event, false));
+    const clearMovement = (): void => {
+      this.movement.left = false;
+      this.movement.right = false;
+      this.movement.up = false;
+      this.movement.down = false;
+    };
+    window.addEventListener('blur', clearMovement);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      window.removeEventListener('blur', clearMovement);
+      clearMovement();
+    });
   }
 
   protected onPlayStarted(): void {

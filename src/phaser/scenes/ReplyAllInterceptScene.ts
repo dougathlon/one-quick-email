@@ -25,6 +25,7 @@ export class ReplyAllInterceptScene extends BaseMiniGameScene {
   private selector!: Phaser.GameObjects.Rectangle;
   private targetIndex = 1;
   private selectorPosition = 160;
+  private selectorSpeed = 0.19;
   private recipientPositions: readonly number[] = [265, 560, 855, 1150];
 
   constructor() {
@@ -36,6 +37,8 @@ export class ReplyAllInterceptScene extends BaseMiniGameScene {
     const panelY = this.isPortrait ? 700 : 500;
     this.recipientPositions = this.isPortrait ? [430, 600, 770, 940] : [265, 560, 855, 1150];
     this.selectorPosition = this.isPortrait ? 340 : 160;
+    const companyPosition = this.recipientPositions[3] ?? (this.isPortrait ? 940 : 1150);
+    this.selectorSpeed = (companyPosition - 16 - this.selectorPosition) / this.definition.durationMs;
     this.addPanel(centerX, panelY, this.isPortrait ? 540 : 1160, this.isPortrait ? 820 : 430, PALETTE.white);
     const names = ['YOU', 'MARA / FINANCE', 'DEV / LEGAL', 'ENTIRE COMPANY'] as const;
     this.targetIndex = Phaser.Math.Between(1, 2);
@@ -102,7 +105,7 @@ export class ReplyAllInterceptScene extends BaseMiniGameScene {
   }
 
   protected updateGame(delta: number): void {
-    this.selectorPosition += delta * (this.isPortrait ? 0.12 : 0.19);
+    this.selectorPosition += delta * this.selectorSpeed;
     if (this.isPortrait) this.selector.y = this.selectorPosition;
     else this.selector.x = this.selectorPosition;
     const companyPosition = this.recipientPositions[3] ?? (this.isPortrait ? 940 : 1150);

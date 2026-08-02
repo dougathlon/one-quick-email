@@ -7,7 +7,7 @@ export const STAMP_OF_APPROVAL: MiniGameDefinition = {
   id: 'stamp-of-approval',
   sceneKey: 'mini-game-stamp-of-approval',
   title: 'Stamp of Approval',
-  instruction: 'Tap, click, or press SPACE when the stamp crosses the signature box.',
+  instruction: 'Tap, click, or press SPACE when the stamp lines up above the signature box.',
   durationMs: 5_000,
   theme: {
     background: 0xe8ddc4,

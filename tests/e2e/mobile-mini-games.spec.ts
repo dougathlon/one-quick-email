@@ -46,6 +46,72 @@ async function completeMiniGame(page: Page): Promise<void> {
   });
 }
 
+interface LogicalPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+async function logicalPointOnCanvas(page: Page, point: LogicalPoint): Promise<LogicalPoint> {
+  const box = await page.locator('#phaser-layer canvas').boundingBox();
+  if (!box) throw new Error('Mini-game canvas has no bounds');
+  const scale = Math.min(box.width / 600, box.height / 1_200);
+  return {
+    x: box.x + (box.width - 600 * scale) / 2 + point.x * scale,
+    y: box.y + (box.height - 1_200 * scale) / 2 + point.y * scale,
+  };
+}
+
+async function touchDrag(
+  page: Page,
+  start: LogicalPoint,
+  end: LogicalPoint,
+  durationMs = 90,
+): Promise<void> {
+  const client = await page.context().newCDPSession(page);
+  const from = await logicalPointOnCanvas(page, start);
+  const to = await logicalPointOnCanvas(page, end);
+  const touch = (point: LogicalPoint) => ({
+    x: point.x,
+    y: point.y,
+    id: 1,
+    radiusX: 2,
+    radiusY: 2,
+    force: 1,
+  });
+  await client.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [touch(from)],
+  });
+  const steps = 5;
+  for (let index = 1; index <= steps; index += 1) {
+    if (durationMs > 0) await page.waitForTimeout(durationMs / steps);
+    const progress = index / steps;
+    await client.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [touch({
+        x: from.x + (to.x - from.x) * progress,
+        y: from.y + (to.y - from.y) * progress,
+      })],
+    });
+  }
+  await client.send('Input.dispatchTouchEvent', {
+    type: 'touchEnd',
+    touchPoints: [],
+  });
+  await client.detach();
+}
+
+async function miniGameStatus(page: Page): Promise<string | null> {
+  return page.locator('#phaser-layer').getAttribute('data-mini-game-status');
+}
+
+async function startPlayingMiniGame(page: Page, id: MiniGameId): Promise<void> {
+  await forceInterruption(page, id);
+  await expect(page.locator('#phaser-layer')).toHaveAttribute('data-mini-game-status', 'playing', {
+    timeout: 4_000,
+  });
+}
+
 test.describe('portrait mini-games', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
@@ -89,5 +155,52 @@ test.describe('portrait mini-games', () => {
       )).toBe('compose');
       await expect(layer).not.toHaveClass(/\bactive\b/);
     }
+  });
+
+  test('direct-manipulation games consume real touch drags', async ({ page }) => {
+    test.setTimeout(60_000);
+    await startMobileScenario(page);
+    const layer = page.locator('#phaser-layer');
+    const canvas = layer.locator('canvas');
+
+    await startPlayingMiniGame(page, 'calendar-collision');
+    await expect(canvas).not.toHaveAttribute('data-mini-game-pointer-drag', /.+/);
+    await touchDrag(page, { x: 85, y: 960 }, { x: 135, y: 650 });
+    if ((await miniGameStatus(page)) === 'playing'
+      && (await canvas.getAttribute('data-mini-game-pointer-drag')) === null) {
+      await touchDrag(page, { x: 515, y: 960 }, { x: 135, y: 650 });
+    }
+    for (const [from, to] of [[135, 245], [245, 355], [355, 465]] as const) {
+      if ((await miniGameStatus(page)) !== 'playing') break;
+      await touchDrag(page, { x: from, y: 650 }, { x: to, y: 650 });
+    }
+    await expect(canvas).toHaveAttribute('data-mini-game-pointer-drag', /calendar-collision:/);
+    await expect(layer).toHaveAttribute('data-mini-game-status', 'success');
+
+    await startPlayingMiniGame(page, 'expense-triage');
+    for (const homeY of [420, 690, 960]) {
+      for (const targetY of [420, 690, 960]) {
+        if ((await miniGameStatus(page)) !== 'playing') break;
+        await touchDrag(page, { x: 150, y: homeY }, { x: 450, y: targetY });
+      }
+    }
+    await expect(canvas).toHaveAttribute('data-mini-game-pointer-drag', /expense-triage:/);
+    await expect(layer).toHaveAttribute('data-mini-game-status', 'success');
+
+    await startPlayingMiniGame(page, 'badge-scan');
+    await touchDrag(page, { x: 130, y: 720 }, { x: 470, y: 720 }, 850);
+    await expect(canvas).toHaveAttribute('data-mini-game-pointer-drag', /badge-scan:/);
+    await expect(layer).toHaveAttribute('data-mini-game-status', 'success');
+
+    await startPlayingMiniGame(page, 'quick-question');
+    await touchDrag(page, { x: 300, y: 710 }, { x: 345, y: 755 });
+    const quickTrace = await canvas.getAttribute('data-mini-game-pointer-drag');
+    expect(quickTrace).toMatch(/^quick-question:\d+:\d+:\d+$/);
+    const [, , quickX = '0', quickY = '0'] = quickTrace?.split(':') ?? [];
+    expect(Number(quickX)).toBeGreaterThan(300);
+    expect(Number(quickY)).toBeGreaterThan(710);
+    expect(await miniGameStatus(page)).toBe('playing');
+    await completeMiniGame(page);
+    await expect(layer).not.toHaveClass(/\bactive\b/);
   });
 });

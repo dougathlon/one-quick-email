@@ -41,6 +41,12 @@ type ScenePhase = 'briefing' | 'playing' | 'ending' | 'complete' | 'cancelled';
 
 type EventEmitterLike = Phaser.Events.EventEmitter | Phaser.GameObjects.GameObject;
 
+interface DirectPointerDragHandlers {
+  readonly start?: (pointer: Phaser.Input.Pointer) => void;
+  readonly move: (pointer: Phaser.Input.Pointer) => void;
+  readonly end?: (pointer: Phaser.Input.Pointer) => void;
+}
+
 export abstract class BaseMiniGameScene extends Phaser.Scene {
   readonly definition: MiniGameDefinition;
 
@@ -307,6 +313,55 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
     this.cleanupCallbacks.push(() => emitter.off(eventName, guardedHandler));
   }
 
+  /** Track one mouse or touch pointer from press through release. */
+  protected enableDirectPointerDrag(
+    target: Phaser.GameObjects.GameObject,
+    handlers: DirectPointerDragHandlers,
+  ): void {
+    let activePointerId: number | null = null;
+
+    const handleDown = (pointer: Phaser.Input.Pointer): void => {
+      if (!this.isPlaying || activePointerId !== null) return;
+      activePointerId = pointer.id;
+      handlers.start?.(pointer);
+      handlers.move(pointer);
+      this.reportPointerDrag(pointer);
+    };
+    const handleMove = (pointer: Phaser.Input.Pointer): void => {
+      if (!this.isPlaying || pointer.id !== activePointerId || !pointer.isDown) return;
+      handlers.move(pointer);
+      this.reportPointerDrag(pointer);
+    };
+    const handleUp = (pointer: Phaser.Input.Pointer): void => {
+      if (pointer.id !== activePointerId) return;
+      activePointerId = null;
+      if (this.isPlaying) handlers.end?.(pointer);
+    };
+
+    target.on(Phaser.Input.Events.POINTER_DOWN, handleDown);
+    this.input.on(Phaser.Input.Events.POINTER_MOVE, handleMove);
+    this.input.on(Phaser.Input.Events.POINTER_UP, handleUp);
+    this.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, handleUp);
+    this.cleanupCallbacks.push(() => {
+      target.off(Phaser.Input.Events.POINTER_DOWN, handleDown);
+      this.input.off(Phaser.Input.Events.POINTER_MOVE, handleMove);
+      this.input.off(Phaser.Input.Events.POINTER_UP, handleUp);
+      this.input.off(Phaser.Input.Events.POINTER_UP_OUTSIDE, handleUp);
+      activePointerId = null;
+    });
+  }
+
+  private reportPointerDrag(pointer: Phaser.Input.Pointer): void {
+    if (!import.meta.env.DEV) return;
+    const point = this.pointerToGame(pointer);
+    this.game.canvas.dataset.miniGamePointerDrag = [
+      this.definition.id,
+      pointer.id,
+      Math.round(point.x),
+      Math.round(point.y),
+    ].join(':');
+  }
+
   protected pulse(target: Phaser.GameObjects.GameObject): void {
     this.tweens.add({
       targets: target,
@@ -341,6 +396,7 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
 
   private beginPlay(): void {
     if (this.phase !== 'briefing') return;
+    if (import.meta.env.DEV) delete this.game.canvas.dataset.miniGamePointerDrag;
     this.phase = 'playing';
     this.stopBriefingKeyTracking?.();
     this.stopBriefingKeyTracking = null;
@@ -543,8 +599,9 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
     const instruction = this.add.text(76, 112, this.definition.instruction, {
       color: this.toCssColor(theme.ink),
       fontFamily: theme.fontFamily,
-      fontSize: '25px',
+      fontSize: '19px',
       fontStyle: 'bold',
+      wordWrap: { width: 870 },
     });
 
     const timerPanel = this.add.rectangle(1198, 89, 340, 100, theme.surface).setStrokeStyle(5, theme.ink);

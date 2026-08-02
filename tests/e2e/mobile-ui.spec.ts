@@ -96,7 +96,8 @@ for (const viewport of PHONE_VIEWPORTS) {
     const inboxNote = page.getByTestId('mobile-inbox-note');
     await expect(page.getByTestId('inbox-screen')).toBeVisible();
     await expect(inboxNote).toBeVisible();
-    await expect(inboxNote).toContainText('reply will appear at the top');
+    await expect(inboxNote).toContainText('new message will appear at the top');
+    await expect(page.getByTestId('message-list')).toHaveCSS('overflow-y', 'hidden');
     await expectWithinViewport(page, inboxNote);
     await expectPageContained(page);
 

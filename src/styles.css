@@ -315,7 +315,7 @@ button { color: inherit; }
 
 .message-list-header { min-height: 25px; border-bottom: 1px solid #777; background: #d5d2ca; font-size: 10px; font-weight: 700; }
 .message-list-header span { height: 100%; padding: 6px; border-right: 1px solid #999; }
-.message-list { flex: 1; min-height: 0; overflow: auto; background: #fff; scrollbar-color: #999 #ddd; }
+.message-list { flex: 1; min-height: 0; overflow: hidden; overscroll-behavior: none; background: #fff; }
 .message-row { width: 100%; min-height: 24px; padding: 0; border: 0; border-bottom: 1px solid #e3e2df; border-radius: 0; background: #fff; color: #20242a; text-align: left; font-size: 11px; }
 .message-row:nth-child(even) { background: #f2f1ed; }
 .message-row > * { min-width: 0; padding: 4px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

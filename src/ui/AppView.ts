@@ -47,7 +47,13 @@ export class AppView {
     this.queryButton('#start-work').addEventListener('click', this.callbacks.onStartWork);
   }
 
-  renderCompose(scenario: EmailScenario, draft: string, wordCount: number, muted: boolean): HTMLTextAreaElement {
+  renderCompose(
+    scenario: EmailScenario,
+    draft: string,
+    wordCount: number,
+    inboxCount: number,
+    muted: boolean,
+  ): HTMLTextAreaElement {
     this.root.innerHTML = `
       <main class="office-desktop compose-screen" data-testid="compose-screen">
         <section class="mail-window" aria-label="Reply window">
@@ -66,7 +72,7 @@ export class AppView {
               <div class="pane-caption">Mail Folders</div>
               <ul class="folder-tree">
                 <li><span>▾</span> Personal Folders</li>
-                <li class="folder active"><span>▣</span> Inbox <b>(1)</b></li>
+                <li class="folder active"><span>▣</span> Inbox <b id="compose-inbox-count">(${inboxCount})</b></li>
                 <li class="folder"><span>▤</span> Drafts</li>
                 <li class="folder"><span>➤</span> Sent Items</li>
                 <li class="folder"><span>⌫</span> Deleted Items</li>
@@ -156,12 +162,12 @@ export class AppView {
                 <li class="folder"><span>➤</span> Sent Items</li>
                 <li class="folder"><span>⌫</span> Deleted Items</li>
               </ul>
-              <div class="inbox-surprise-copy"><strong>Your email was sent.</strong><br>Browse the inbox while you wait. Any reply to your sent email will appear at the top.</div>
+              <div class="inbox-surprise-copy"><strong>Your email was sent.</strong><br>Take a moment. Any new message will appear at the top.</div>
             </aside>
             <section class="message-list-pane">
               <div class="mobile-inbox-note" data-testid="mobile-inbox-note" role="status" aria-live="polite">
                 <strong>Your email was sent.</strong>
-                <span>Wait here. The reply will appear at the top of the inbox.</span>
+                <span>Take a moment. Any new message will appear at the top.</span>
               </div>
               <div class="message-list-header"><span></span><span>From</span><span>Subject</span><span>Received</span></div>
               <div id="message-list" class="message-list" role="list" data-testid="message-list">
@@ -180,6 +186,7 @@ export class AppView {
     const list = this.root.querySelector('#message-list');
     if (!list) return;
     list.insertAdjacentHTML('afterbegin', this.messageRow(message, true));
+    list.scrollTop = 0;
     const replyButton = list.querySelector<HTMLButtonElement>('[data-recipient-reply="true"]');
     replyButton?.addEventListener('click', this.callbacks.onOpenReply);
     const total = list.children.length;

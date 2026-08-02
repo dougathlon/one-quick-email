@@ -104,7 +104,7 @@ export class AttachmentHuntScene extends BaseMiniGameScene {
       const label = this.add.text(this.isPortrait ? -38 : -45, 17, wrapFilename(filename, this.isPortrait ? 13 : FILENAME_LINE_LENGTH), {
         color: '#14213d',
         fontFamily: 'Courier New, monospace',
-        fontSize: this.isPortrait ? '17px' : '15px',
+        fontSize: '17px',
         fontStyle: 'bold',
         lineSpacing: 2,
       }).setOrigin(0, 0.5);
@@ -137,8 +137,11 @@ export class AttachmentHuntScene extends BaseMiniGameScene {
   }
 
   protected onPlayStarted(): void {
-    this.shuffleWindows();
-    this.time.addEvent({ delay: 640, loop: true, callback: () => this.shuffleWindows() });
+    this.time.delayedCall(550, () => {
+      if (!this.isPlaying) return;
+      this.shuffleWindows();
+      this.time.addEvent({ delay: 760, loop: true, callback: () => this.shuffleWindows() });
+    });
   }
 
   private choose(file: FileWindow): void {

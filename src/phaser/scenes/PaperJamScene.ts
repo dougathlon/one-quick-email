@@ -25,6 +25,10 @@ export class PaperJamScene extends BaseMiniGameScene {
   private printer!: Phaser.GameObjects.Container;
   private paper!: Phaser.GameObjects.Rectangle;
   private progressFill!: Phaser.GameObjects.Rectangle;
+  private expectedCue!: Phaser.GameObjects.Text;
+  private leftButtonSurface!: Phaser.GameObjects.Rectangle;
+  private rightButtonSurface!: Phaser.GameObjects.Rectangle;
+  private paperLines: Array<{ readonly line: Phaser.GameObjects.Rectangle; readonly offset: number }> = [];
   private progress = 0;
   private expected: 'left' | 'right' = 'left';
   private shakeTime = 0;
@@ -38,6 +42,7 @@ export class PaperJamScene extends BaseMiniGameScene {
     this.progress = 0;
     this.expected = Phaser.Math.Between(0, 1) === 0 ? 'left' : 'right';
     this.shakeTime = 0;
+    this.paperLines = [];
     this.printerHomeX = this.isPortrait ? 300 : 720;
 
     const printerY = this.isPortrait ? 610 : 505;
@@ -53,6 +58,7 @@ export class PaperJamScene extends BaseMiniGameScene {
     for (let y = 28; y <= 150; y += 31) {
       const line = this.add.rectangle(this.printerHomeX, printerY + 100 + y, this.isPortrait ? 185 : 205, 5, 0xb9bfd0);
       this.gameLayer.add(line);
+      this.paperLines.push({ line, offset: y });
     }
 
     const progressY = this.isPortrait ? 1085 : 748;
@@ -63,7 +69,7 @@ export class PaperJamScene extends BaseMiniGameScene {
       .setScale(0, 1);
     this.gameLayer.add([progressTrack, this.progressFill]);
 
-    this.makeButton(
+    const leftButton = this.makeButton(
       this.isPortrait ? 145 : 390,
       this.isPortrait ? 925 : 505,
       this.isPortrait ? 220 : 150,
@@ -72,7 +78,7 @@ export class PaperJamScene extends BaseMiniGameScene {
       PALETTE.cyan,
       () => this.pull('left'),
     );
-    this.makeButton(
+    const rightButton = this.makeButton(
       this.isPortrait ? 455 : 1050,
       this.isPortrait ? 925 : 505,
       this.isPortrait ? 220 : 150,
@@ -81,6 +87,20 @@ export class PaperJamScene extends BaseMiniGameScene {
       PALETTE.yellow,
       () => this.pull('right'),
     );
+    this.leftButtonSurface = leftButton.first as Phaser.GameObjects.Rectangle;
+    this.rightButtonSurface = rightButton.first as Phaser.GameObjects.Rectangle;
+    this.expectedCue = this.addText(
+      this.printerHomeX,
+      this.isPortrait ? 820 : 800,
+      '',
+      this.isPortrait ? 25 : 22,
+      '#14213d',
+      {
+        backgroundColor: '#fffaf0',
+        padding: { x: 12, y: 7 },
+      },
+    ).setOrigin(0.5);
+    this.refreshExpectedCue();
 
     this.onKey('keydown', (event) => {
       if (event.repeat || !this.isPlaying) return;
@@ -98,6 +118,9 @@ export class PaperJamScene extends BaseMiniGameScene {
     this.shakeTime += delta;
     this.printer.x = this.printerHomeX + Math.sin(this.shakeTime * 0.095) * 8 + Phaser.Math.Between(-3, 3);
     this.printer.angle = Math.sin(this.shakeTime * 0.071) * 1.4;
+    for (const { line, offset } of this.paperLines) {
+      line.setPosition(this.printer.x, this.printer.y + this.paper.y + offset);
+    }
   }
 
   private pull(side: 'left' | 'right'): void {
@@ -108,9 +131,17 @@ export class PaperJamScene extends BaseMiniGameScene {
     } else {
       this.progress += 1;
       this.expected = side === 'left' ? 'right' : 'left';
-      this.paper.y += 12;
     }
+    this.paper.y = 100 + this.progress * 12;
     this.progressFill.scaleX = this.progress / 10;
+    this.refreshExpectedCue();
     if (this.progress >= 10) this.succeed();
+  }
+
+  private refreshExpectedCue(): void {
+    const leftNext = this.expected === 'left';
+    this.expectedCue.setText(`NEXT PULL: ${leftNext ? 'A / LEFT' : 'D / RIGHT'}`);
+    this.leftButtonSurface.setStrokeStyle(leftNext ? 8 : 4, leftNext ? PALETTE.green : PALETTE.ink);
+    this.rightButtonSurface.setStrokeStyle(leftNext ? 4 : 8, leftNext ? PALETTE.ink : PALETTE.green);
   }
 }

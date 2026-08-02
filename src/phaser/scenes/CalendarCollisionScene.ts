@@ -83,18 +83,15 @@ export class CalendarCollisionScene extends BaseMiniGameScene {
     }).setOrigin(0.5);
     this.meeting.add([meetingSurface, meetingLabel]);
     this.meeting.setSize(this.isPortrait ? 150 : 126, this.isPortrait ? 112 : 82)
-      .setInteractive({ useHandCursor: true, draggable: true });
-    this.input.setDraggable(this.meeting);
+      .setInteractive({ useHandCursor: true });
     this.gameLayer.add(this.meeting);
 
-    this.listen(this.meeting, Phaser.Input.Events.DRAG, (pointer) => {
-      if (!this.isPlaying) return;
-      const local = this.pointerToGame(pointer as Phaser.Input.Pointer);
-      this.meeting.setPosition(Phaser.Math.Clamp(local.x, this.trackMinX, this.trackMaxX), this.trackY);
-    });
-    this.listen(this.meeting, Phaser.Input.Events.DRAG_END, () => {
-      if (!this.isPlaying) return;
-      this.checkLock();
+    this.enableDirectPointerDrag(this.meeting, {
+      move: (pointer) => {
+        const local = this.pointerToGame(pointer);
+        this.meeting.setPosition(Phaser.Math.Clamp(local.x, this.trackMinX, this.trackMaxX), this.trackY);
+      },
+      end: () => this.checkLock(),
     });
 
     this.onKey('keydown', (event) => {

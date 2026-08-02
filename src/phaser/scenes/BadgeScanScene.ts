@@ -27,6 +27,7 @@ const SCANNER_X = 850;
 const FINISH_X = 1140;
 const MIN_SWIPE_MS = 650;
 const MAX_SWIPE_MS = 1_250;
+const METER_MAX_MS = 1_700;
 
 export class BadgeScanScene extends BaseMiniGameScene {
   private card!: Phaser.GameObjects.Container;
@@ -72,7 +73,16 @@ export class BadgeScanScene extends BaseMiniGameScene {
 
     const meterY = this.isPortrait ? 355 : 310;
     const meterTrack = this.add.rectangle(centerX, meterY, this.isPortrait ? 430 : 610, 36, 0xd8d0bd).setStrokeStyle(4, PALETTE.ink);
-    const targetBand = this.add.rectangle(centerX, meterY, this.isPortrait ? 150 : 210, 28, PALETTE.green, 0.8);
+    const targetBandStartX = this.meterXForElapsed(MIN_SWIPE_MS);
+    const targetBandEndX = this.meterXForElapsed(MAX_SWIPE_MS);
+    const targetBand = this.add.rectangle(
+      (targetBandStartX + targetBandEndX) / 2,
+      meterY,
+      targetBandEndX - targetBandStartX,
+      28,
+      PALETTE.green,
+      0.8,
+    );
     this.meterNeedle = this.add.triangle(this.meterStartX, meterY - 35, 0, 0, 22, 0, 11, 24, PALETTE.red);
     this.gameLayer.add([meterTrack, targetBand, this.meterNeedle]);
     this.addText(this.meterStartX, meterY + 35, 'FAST', this.isPortrait ? 19 : 17, '#7a8499').setOrigin(0.5);
@@ -97,26 +107,26 @@ export class BadgeScanScene extends BaseMiniGameScene {
       fontStyle: 'bold',
     });
     this.card.add([cardSurface, portrait, name, access]);
-    this.card.setSize(cardWidth, cardHeight).setInteractive({ useHandCursor: true, draggable: true });
-    this.input.setDraggable(this.card);
+    this.card.setSize(cardWidth, cardHeight).setInteractive({ useHandCursor: true });
     this.gameLayer.add(this.card);
 
-    this.listen(this.card, Phaser.Input.Events.DRAG_START, () => {
-      if (!this.isPlaying) return;
-      this.swipeStartedAt = this.time.now;
-      this.crossedScanner = false;
+    this.enableDirectPointerDrag(this.card, {
+      start: () => {
+        this.swipeStartedAt = this.time.now;
+        this.crossedScanner = false;
+      },
+      move: (pointer) => {
+        if (this.swipeStartedAt === null) return;
+        const local = this.pointerToGame(pointer);
+        this.card.setPosition(
+          Phaser.Math.Clamp(local.x, this.cardHomeX, this.finishX),
+          Phaser.Math.Clamp(local.y, this.cardHomeY - 80, this.cardHomeY + 80),
+        );
+        if (this.card.x >= this.scannerX) this.crossedScanner = true;
+        this.updateMeter(this.time.now - this.swipeStartedAt);
+      },
+      end: () => this.endPointerSwipe(),
     });
-    this.listen(this.card, Phaser.Input.Events.DRAG, (pointer) => {
-      if (!this.isPlaying || this.swipeStartedAt === null) return;
-      const local = this.pointerToGame(pointer as Phaser.Input.Pointer);
-      this.card.setPosition(
-        Phaser.Math.Clamp(local.x, this.cardHomeX, this.finishX),
-        Phaser.Math.Clamp(local.y, this.cardHomeY - 80, this.cardHomeY + 80),
-      );
-      if (this.card.x >= this.scannerX) this.crossedScanner = true;
-      this.updateMeter(this.time.now - this.swipeStartedAt);
-    });
-    this.listen(this.card, Phaser.Input.Events.DRAG_END, () => this.endPointerSwipe());
 
     this.onKey('keydown-SPACE', (event) => {
       if (event.repeat || !this.isPlaying || this.keyboardSwipeStartedAt !== null) return;
@@ -134,10 +144,14 @@ export class BadgeScanScene extends BaseMiniGameScene {
   }
 
   protected updateGame(_delta: number): void {
-    if (this.keyboardSwipeStartedAt === null) return;
-    const elapsed = this.time.now - this.keyboardSwipeStartedAt;
-    this.card.x = Phaser.Math.Linear(this.cardHomeX, this.finishX, Phaser.Math.Clamp(elapsed / 1_500, 0, 1));
-    this.updateMeter(elapsed);
+    if (this.swipeStartedAt !== null) {
+      this.updateMeter(this.time.now - this.swipeStartedAt);
+    }
+    if (this.keyboardSwipeStartedAt !== null) {
+      const elapsed = this.time.now - this.keyboardSwipeStartedAt;
+      this.card.x = Phaser.Math.Linear(this.cardHomeX, this.finishX, Phaser.Math.Clamp(elapsed / 1_500, 0, 1));
+      this.updateMeter(elapsed);
+    }
   }
 
   private endPointerSwipe(): void {
@@ -162,6 +176,14 @@ export class BadgeScanScene extends BaseMiniGameScene {
   }
 
   private updateMeter(elapsed: number): void {
-    this.meterNeedle.x = Phaser.Math.Linear(this.meterStartX, this.meterEndX, Phaser.Math.Clamp(elapsed / 1_700, 0, 1));
+    this.meterNeedle.x = this.meterXForElapsed(elapsed);
+  }
+
+  private meterXForElapsed(elapsed: number): number {
+    return Phaser.Math.Linear(
+      this.meterStartX,
+      this.meterEndX,
+      Phaser.Math.Clamp(elapsed / METER_MAX_MS, 0, 1),
+    );
   }
 }
