@@ -16,7 +16,7 @@ export type MiniGameId =
   | 'attachment-hunt';
 
 export interface BrowserTestState {
-  phase: 'title' | 'compose' | 'minigame' | 'inbox' | 'reply' | 'sent';
+  phase: 'title' | 'compose' | 'minigame' | 'inbox';
   draft: string;
   scenarioId: string | null;
   activeMiniGame: MiniGameId | null;

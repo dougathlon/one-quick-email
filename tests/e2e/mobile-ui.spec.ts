@@ -69,6 +69,8 @@ for (const viewport of PHONE_VIEWPORTS) {
 
     await expect(page.getByText('Desktop required')).toHaveCount(0);
     await expect(page.getByTestId('title-screen')).toBeVisible();
+    await expect(page.getByText('Macrohard Office', { exact: true })).toBeVisible();
+    await expect(page.getByText('Send a 100-word email.', { exact: true })).toBeVisible();
     const startButton = page.getByTestId('start-work');
     await expect(startButton).toBeVisible();
     await expectWithinViewport(page, startButton);
@@ -82,6 +84,7 @@ for (const viewport of PHONE_VIEWPORTS) {
     const sendButton = page.getByTestId('send-email');
     await expect(page.getByTestId('compose-screen')).toBeVisible();
     await expect(page.getByTestId('reply-brief')).toHaveCount(0);
+    await expect(page.getByTestId('player-mailbox')).toHaveText('Office Administration <admin@office.local>');
     await expect(incomingEmail).toBeVisible();
     await expectWithinViewport(page, incomingEmail);
     await expect(editor).toBeVisible();
@@ -93,37 +96,27 @@ for (const viewport of PHONE_VIEWPORTS) {
     await setReadyDraft(page);
     await sendButton.click();
 
-    const inboxNote = page.getByTestId('mobile-inbox-note');
     await expect(page.getByTestId('inbox-screen')).toBeVisible();
-    await expect(inboxNote).toBeVisible();
-    await expect(inboxNote).toContainText('new message will appear at the top');
     await expect(page.getByTestId('message-list')).toHaveCSS('overflow-y', 'hidden');
-    await expectWithinViewport(page, inboxNote);
+    await expect(page.getByTestId('play-again')).toBeHidden();
     await expectPageContained(page);
 
     await skipInboxDelay(page);
-    const recipientReply = page.getByTestId('recipient-reply-row');
-    await expect(recipientReply).toBeVisible();
-    await expect(inboxNote).toContainText('reply has arrived');
-    expect((await recipientReply.boundingBox())?.height).toBeGreaterThanOrEqual(44);
-    await recipientReply.click();
+    const newMessage = page.getByTestId('new-message-row');
+    await expect(newMessage).toBeVisible();
+    await expect(newMessage).toHaveClass(/\bbackground-message\b/);
+    expect((await newMessage.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+    await newMessage.click();
+    await expect(page.getByTestId('inbox-screen')).toBeVisible();
+    await expect(page.getByTestId('reply-screen')).toHaveCount(0);
 
-    const replyContext = page.getByTestId('reply-context');
     const playAgain = page.getByTestId('play-again');
-    const viewSent = page.getByTestId('view-sent');
-    await expect(page.getByTestId('reply-screen')).toBeVisible();
-    await expect(replyContext).toContainText('Reply to the email you just sent');
-    await expectWithinViewport(page, replyContext);
     await expectWithinViewport(page, playAgain);
-    await expectWithinViewport(page, viewSent);
     expect((await playAgain.boundingBox())?.height).toBeGreaterThanOrEqual(44);
-    expect((await viewSent.boundingBox())?.height).toBeGreaterThanOrEqual(44);
     await expectPageContained(page);
 
-    await viewSent.click();
-    await expect(page.getByTestId('sent-screen')).toBeVisible();
-    await expect(page.getByTestId('sent-email-body')).toBeVisible();
-    await expectWithinViewport(page, page.getByRole('button', { name: 'Return to Reply' }));
+    await playAgain.click();
+    await expect(page.getByTestId('compose-screen')).toBeVisible();
     await expectPageContained(page);
   });
 }

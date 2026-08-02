@@ -1,4 +1,4 @@
-export type GamePhase = 'title' | 'compose' | 'minigame' | 'inbox' | 'reply' | 'sent';
+export type GamePhase = 'title' | 'compose' | 'minigame' | 'inbox';
 
 export type MiniGameId =
   | 'calendar-collision'
@@ -14,27 +14,12 @@ export type MiniGameId =
 
 export type MiniGameOutcome = 'success' | 'timeout';
 
-export interface ScenarioMatter {
-  id: string;
-  prompt: string;
-  keywordGroups: readonly (readonly string[])[];
-}
-
-export interface ScenarioReplies {
-  positive: string;
-  omitted: Readonly<Record<string, string>>;
-  confused: string;
-  malfunction: string;
-}
-
 export interface EmailScenario {
   id: string;
   senderName: string;
   senderEmail: string;
   subject: string;
   body: readonly string[];
-  matters: readonly [ScenarioMatter, ScenarioMatter, ScenarioMatter];
-  replies: ScenarioReplies;
 }
 
 export interface DraftSnapshot {

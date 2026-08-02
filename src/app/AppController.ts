@@ -2,7 +2,6 @@ import { AudioManager } from '../audio/AudioManager';
 import { INBOX_MESSAGES } from '../data/inbox';
 import { SCENARIOS } from '../data/scenarios';
 import { attachEditorGuards } from '../game/editorGuards';
-import { selectFinalReply } from '../game/evaluation';
 import { InterruptionScheduler } from '../game/InterruptionScheduler';
 import { SeededRandom, selectMiniGame, selectScenario, type RandomSource } from '../game/random';
 import type {
@@ -60,8 +59,7 @@ interface ApplicationState {
   miniGameHistory: MiniGameId[];
   activeMiniGame: MiniGameId | null;
   inboxMessages: InboxMessage[];
-  finalReply: string;
-  recipientReplyArrived: boolean;
+  newMessageArrived: boolean;
 }
 
 export class AppController {
@@ -90,10 +88,7 @@ export class AppController {
       onStartWork: () => this.startWork(),
       onToggleMute: () => this.toggleMute(),
       onSend: () => this.sendEmail(),
-      onOpenReply: () => this.openRecipientReply(),
       onPlayAgain: () => this.beginScenario(),
-      onViewSent: () => this.viewSentEmail(),
-      onBackToReply: () => this.renderFinalReply(),
     });
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
   }
@@ -334,7 +329,6 @@ export class AppController {
     this.state.wordCount = countWords(this.state.draft);
     if (!canSend(this.state.draft)) return;
     this.captureEditorPosition();
-    this.state.finalReply = selectFinalReply(this.requireScenario(), this.state.draft);
     this.state.phase = 'inbox';
     this.scheduler.stop();
     this.detachEditor();
@@ -349,12 +343,12 @@ export class AppController {
     this.inboxRemaining = REPLY_DELAY_MS;
     this.inboxLastTick = performance.now();
     const tick = (): void => {
-      if (this.state.phase !== 'inbox' || this.state.recipientReplyArrived) return;
+      if (this.state.phase !== 'inbox' || this.state.newMessageArrived) return;
       const now = performance.now();
       if (!document.hidden) this.inboxRemaining -= now - this.inboxLastTick;
       this.inboxLastTick = now;
       if (this.inboxRemaining <= 0) {
-        this.deliverRecipientReply();
+        this.deliverNewMessage();
         return;
       }
       this.inboxTimer = setTimeout(tick, Math.min(125, this.inboxRemaining));
@@ -362,38 +356,21 @@ export class AppController {
     this.inboxTimer = setTimeout(tick, 100);
   }
 
-  private deliverRecipientReply(): void {
-    if (this.state.phase !== 'inbox' || this.state.recipientReplyArrived) return;
+  private deliverNewMessage(): void {
+    if (this.state.phase !== 'inbox' || this.state.newMessageArrived) return;
     this.clearInboxTimer();
-    this.state.recipientReplyArrived = true;
+    this.state.newMessageArrived = true;
     const scenario = this.requireScenario();
-    const replyMessage: InboxMessage = {
-      id: 'recipient-reply',
+    const newMessage: InboxMessage = {
+      id: 'new-message',
       sender: scenario.senderName,
       subject: `Re: ${scenario.subject}`,
       time: 'Now',
       unread: true,
     };
-    this.state.inboxMessages = [replyMessage, ...this.state.inboxMessages];
-    this.view.insertRecipientReply(replyMessage);
+    this.state.inboxMessages = [newMessage, ...this.state.inboxMessages];
+    this.view.insertNewMessage(newMessage);
     this.audio.newMessage();
-  }
-
-  private openRecipientReply(): void {
-    if (this.state.phase !== 'inbox' || !this.state.recipientReplyArrived) return;
-    this.state.phase = 'reply';
-    this.renderFinalReply();
-  }
-
-  private renderFinalReply(): void {
-    this.state.phase = 'reply';
-    this.view.renderReply(this.requireScenario(), this.state.finalReply, this.audio.isMuted);
-  }
-
-  private viewSentEmail(): void {
-    if (this.state.phase !== 'reply') return;
-    this.state.phase = 'sent';
-    this.view.renderSentEmail(this.requireScenario(), this.state.draft, this.audio.isMuted);
   }
 
   private toggleMute(): void {
@@ -432,8 +409,7 @@ export class AppController {
       miniGameHistory: [],
       activeMiniGame: null,
       inboxMessages: [],
-      finalReply: '',
-      recipientReplyArrived: false,
+      newMessageArrived: false,
     };
   }
 
@@ -477,7 +453,7 @@ export class AppController {
         this.captureEditorPosition();
         this.view.updateComposeStatus(this.state.wordCount);
       },
-      skipInboxDelay: () => this.deliverRecipientReply(),
+      skipInboxDelay: () => this.deliverNewMessage(),
       getState: () => ({
         phase: this.state.phase,
         draft: this.state.draft,

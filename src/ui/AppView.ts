@@ -1,14 +1,11 @@
 import type { EmailScenario, InboxMessage } from '../game/types';
-import { countWords, DEFAULT_SEND_WORD_MINIMUM } from '../game/wordCount';
+import { DEFAULT_SEND_WORD_MINIMUM } from '../game/wordCount';
 
 export interface ViewCallbacks {
   onStartWork: () => void;
   onToggleMute: () => void;
   onSend: () => void;
-  onOpenReply: () => void;
   onPlayAgain: () => void;
-  onViewSent: () => void;
-  onBackToReply: () => void;
 }
 
 export class AppView {
@@ -27,19 +24,18 @@ export class AppView {
       <main class="title-screen" data-testid="title-screen">
         <div class="title-window" role="dialog" aria-labelledby="game-title">
           <div class="window-titlebar">
-            <span>Office Mail Setup</span>
+            <span>Macrohard Office</span>
             <span class="window-controls" aria-hidden="true"><i>_</i><i>□</i><i>×</i></span>
           </div>
           <div class="title-body">
             <div class="title-icon" aria-hidden="true">
               <span class="envelope-flap"></span>
             </div>
-            <p class="eyebrow">INTERNAL CORRESPONDENCE SYSTEM</p>
             <h1 id="game-title"><span>ONE</span> QUICK EMAIL</h1>
-            <p class="title-copy">There is just one item to clear before the day can begin.</p>
+            <p class="title-copy">Send a 100-word email.</p>
             <button id="start-work" class="bevel-button primary-button" data-testid="start-work">Start Work</button>
           </div>
-          <div class="window-status"><span>Connection: office.local</span><span>1 task pending</span></div>
+          <div class="window-status"><span>Connection: office.local</span></div>
         </div>
         ${this.muteButton(muted)}
       </main>`;
@@ -82,8 +78,8 @@ export class AppView {
             <section class="compose-pane">
               <div class="address-grid">
                 <span>From:</span><strong>${escapeHtml(scenario.senderName)} &lt;${escapeHtml(scenario.senderEmail)}&gt;</strong>
-                <span>To:</span><strong>you@office.local</strong>
-                <span>Subject:</span><strong>${escapeHtml(scenario.subject)}</strong>
+                <span>To:</span><strong data-testid="player-mailbox">Office Administration &lt;admin@office.local&gt;</strong>
+                <span>Subject:</span><strong data-testid="incoming-subject">${escapeHtml(scenario.subject)}</strong>
               </div>
               <article class="incoming-message" data-testid="incoming-email">
                 ${scenario.body.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join('')}
@@ -151,6 +147,8 @@ export class AppView {
           <div class="toolbar inbox-toolbar">
             <button class="tool-button" disabled>✉</button><button class="tool-button" disabled>↶</button><button class="tool-button" disabled>↷</button>
             <span class="toolbar-divider"></span><span class="inbox-path">Personal Folders ▸ Inbox</span>
+            <span class="toolbar-spacer"></span>
+            <button id="play-again" class="bevel-button inbox-play-again" type="button" data-testid="play-again" hidden>Play Again?</button>
           </div>
           <div class="mail-workspace inbox-workspace">
             <aside class="folder-pane">
@@ -162,13 +160,8 @@ export class AppView {
                 <li class="folder"><span>➤</span> Sent Items</li>
                 <li class="folder"><span>⌫</span> Deleted Items</li>
               </ul>
-              <div class="inbox-surprise-copy"><strong>Your email was sent.</strong><br>Take a moment. Any new message will appear at the top.</div>
             </aside>
             <section class="message-list-pane">
-              <div class="mobile-inbox-note" data-testid="mobile-inbox-note" role="status" aria-live="polite">
-                <strong>Your email was sent.</strong>
-                <span>Take a moment. Any new message will appear at the top.</span>
-              </div>
               <div class="message-list-header"><span></span><span>From</span><span>Subject</span><span>Received</span></div>
               <div id="message-list" class="message-list" role="list" data-testid="message-list">
                 ${messages.map((message) => this.messageRow(message, false)).join('')}
@@ -179,78 +172,22 @@ export class AppView {
         </section>
         ${this.muteButton(muted)}
       </main>`;
+    this.queryButton('#play-again').addEventListener('click', this.callbacks.onPlayAgain);
     this.bindMute();
   }
 
-  insertRecipientReply(message: InboxMessage): void {
+  insertNewMessage(message: InboxMessage): void {
     const list = this.root.querySelector('#message-list');
     if (!list) return;
     list.insertAdjacentHTML('afterbegin', this.messageRow(message, true));
     list.scrollTop = 0;
-    const replyButton = list.querySelector<HTMLButtonElement>('[data-recipient-reply="true"]');
-    replyButton?.addEventListener('click', this.callbacks.onOpenReply);
     const total = list.children.length;
     const count = this.root.querySelector('#inbox-count');
     if (count) count.textContent = `(${total})`;
     const footerTotal = this.root.querySelector('#inbox-total');
     if (footerTotal) footerTotal.textContent = String(total);
-    const mobileNote = this.root.querySelector('.mobile-inbox-note span');
-    if (mobileNote) mobileNote.textContent = 'The reply has arrived. Open the highlighted message at the top.';
-  }
-
-  renderReply(scenario: EmailScenario, replyBody: string, muted: boolean): void {
-    this.root.innerHTML = `
-      <main class="office-desktop reply-screen" data-testid="reply-screen">
-        <section class="message-window final-message-window">
-          ${this.mailTitlebar(`Re: ${scenario.subject}`)}
-          <div class="toolbar"><span class="tool-glyph" aria-hidden="true">↶</span><span class="tool-glyph" aria-hidden="true">↷</span><span class="toolbar-divider"></span><span>Reply received</span></div>
-          <div class="reply-context" data-testid="reply-context">
-            <strong>↩ Reply to the email you just sent</strong>
-            <span>Your sent subject: Re: ${escapeHtml(scenario.subject)}</span>
-          </div>
-          <div class="address-grid final-address">
-            <span>From:</span><strong>${escapeHtml(scenario.senderName)} &lt;${escapeHtml(scenario.senderEmail)}&gt;</strong>
-            <span>To:</span><strong>you@office.local</strong>
-            <span>Subject:</span><strong>Re: ${escapeHtml(scenario.subject)}</strong>
-          </div>
-          <article class="reply-body" data-testid="recipient-reply">
-            <p>Hi,</p>
-            ${replyBody.split('\n').filter(Boolean).map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join('')}
-            <p>Best,<br>${escapeHtml(scenario.senderName.split(' ')[0] ?? scenario.senderName)}</p>
-          </article>
-          <div class="final-actions">
-            <button id="play-again" class="bevel-button primary-button" data-testid="play-again">Play Again</button>
-            <button id="view-sent" class="bevel-button" data-testid="view-sent">View Sent Email</button>
-          </div>
-          <div class="window-status"><span>End of message</span><span>Online</span></div>
-        </section>
-        ${this.muteButton(muted)}
-      </main>`;
-    this.queryButton('#play-again').addEventListener('click', this.callbacks.onPlayAgain);
-    this.queryButton('#view-sent').addEventListener('click', this.callbacks.onViewSent);
-    this.bindMute();
-  }
-
-  renderSentEmail(scenario: EmailScenario, draft: string, muted: boolean): void {
-    this.root.innerHTML = `
-      <main class="office-desktop sent-screen" data-testid="sent-screen">
-        <section class="message-window sent-message-window">
-          ${this.mailTitlebar(`Sent: ${scenario.subject}`)}
-          <div class="address-grid final-address">
-            <span>From:</span><strong>you@office.local</strong>
-            <span>To:</span><strong>${escapeHtml(scenario.senderName)} &lt;${escapeHtml(scenario.senderEmail)}&gt;</strong>
-            <span>Subject:</span><strong>Re: ${escapeHtml(scenario.subject)}</strong>
-          </div>
-          <article class="sent-body" data-testid="sent-email-body">${escapeHtml(draft)}</article>
-          <div class="final-actions">
-            <button id="back-to-reply" class="bevel-button primary-button">Return to Reply</button>
-          </div>
-          <div class="window-status"><span>Sent Items</span><span>${countWords(draft)} words</span></div>
-        </section>
-        ${this.muteButton(muted)}
-      </main>`;
-    this.queryButton('#back-to-reply').addEventListener('click', this.callbacks.onBackToReply);
-    this.bindMute();
+    const playAgain = this.root.querySelector<HTMLButtonElement>('#play-again');
+    if (playAgain) playAgain.hidden = false;
   }
 
   updateMuteButton(muted: boolean): void {
@@ -260,19 +197,16 @@ export class AppView {
     button.setAttribute('aria-pressed', muted ? 'true' : 'false');
   }
 
-  private messageRow(message: InboxMessage, recipientReply: boolean): string {
-    const subject = recipientReply
-      ? `<span class="message-subject recipient-subject"><b class="reply-marker">REPLY TO YOUR SENT EMAIL</b><span>${escapeHtml(message.subject)}</span></span>`
-      : `<span class="message-subject">${escapeHtml(message.subject)}</span>`;
+  private messageRow(message: InboxMessage, arrivingMessage: boolean): string {
     const content = `
       <span class="message-icon" aria-hidden="true">${message.unread ? '✉' : '▱'}</span>
       <span class="message-sender">${escapeHtml(message.sender)}</span>
-      ${subject}
+      <span class="message-subject">${escapeHtml(message.subject)}</span>
       <time>${escapeHtml(message.time)}</time>`;
-    if (recipientReply) {
-      return `<button type="button" class="message-row recipient-reply unread" role="listitem" data-recipient-reply="true" data-testid="recipient-reply-row">${content}</button>`;
-    }
-    return `<div class="message-row background-message ${message.unread ? 'unread' : ''}" role="listitem" data-testid="background-message">${content}</div>`;
+    const testAttributes = arrivingMessage
+      ? 'data-new-message="true" data-testid="new-message-row"'
+      : 'data-testid="background-message"';
+    return `<div class="message-row background-message ${message.unread ? 'unread' : ''}" role="listitem" ${testAttributes}>${content}</div>`;
   }
 
   private mailTitlebar(title: string): string {

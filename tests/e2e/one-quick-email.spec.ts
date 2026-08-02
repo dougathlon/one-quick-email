@@ -4,7 +4,7 @@ type MiniGameId = 'paper-jam' | 'quick-question';
 type MiniGameOutcome = 'success' | 'timeout';
 
 interface BrowserTestState {
-  phase: 'title' | 'compose' | 'minigame' | 'inbox' | 'reply' | 'sent';
+  phase: 'title' | 'compose' | 'minigame' | 'inbox';
   draft: string;
   scenarioId: string | null;
   activeMiniGame: string | null;
@@ -29,6 +29,11 @@ async function startScenario(page: Page, seed: string): Promise<string> {
 
   await expect(page.getByTestId('title-screen')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'ONE QUICK EMAIL' })).toBeVisible();
+  await expect(page.getByText('Macrohard Office', { exact: true })).toBeVisible();
+  await expect(page.getByText('Send a 100-word email.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Office Mail Setup', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('INTERNAL CORRESPONDENCE SYSTEM', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('1 task pending', { exact: true })).toHaveCount(0);
   await page.getByTestId('start-work').click();
 
   await expect(page.getByTestId('compose-screen')).toBeVisible();
@@ -104,7 +109,7 @@ test('loads the title screen and starts a deterministic email scenario', async (
   const scenarioId = await startScenario(page, 'load-and-start');
 
   expect(scenarioId.length).toBeGreaterThan(0);
-  await expect(page.getByTestId('incoming-email').locator('p')).toHaveCount(4);
+  await expect(page.getByTestId('incoming-email').locator('p')).toHaveCount(5);
   await expect(page.getByTestId('reply-brief')).toHaveCount(0);
   await expect(page.getByText('HOW TO REPLY')).toHaveCount(0);
   await expect(page.getByTestId('reply-editor')).toHaveAttribute('aria-describedby', 'word-requirement');
@@ -112,6 +117,7 @@ test('loads the title screen and starts a deterministic email scenario', async (
   await expect(page.getByTestId('word-requirement')).toHaveText('100 words required');
   await expect(page.getByTestId('send-email')).toBeDisabled();
   await expect(page.locator('#compose-inbox-count')).toHaveText('(117)');
+  await expect(page.getByTestId('player-mailbox')).toHaveText('Office Administration <admin@office.local>');
 });
 
 test('allows typing and Backspace while blocking paste, copy, cut, undo, and redo', async ({ page }) => {
@@ -289,17 +295,20 @@ test('waits for a held Quick Question key to be released before restoring editor
   })).toEqual([caret, caret]);
 });
 
-test('shows the same 117-message inbox without scrolling and inserts the marked reply after six seconds', async ({ page }) => {
+test('shows 117 fixed inbox rows and inserts one ordinary unread Re message after six seconds', async ({ page }) => {
   await startScenario(page, 'real-reply-delay');
+  const originalSubject = await page.getByTestId('incoming-subject').innerText();
   const sentAt = await sendReadyDraft(page);
 
   const backgroundRows = page.getByTestId('background-message');
-  const recipientReply = page.getByTestId('recipient-reply-row');
+  const newMessage = page.getByTestId('new-message-row');
+  const playAgain = page.getByTestId('play-again');
   await expect(backgroundRows).toHaveCount(117);
   await expect(page.getByTestId('message-list').getByRole('listitem')).toHaveCount(117);
   await expect(page.locator('#inbox-count')).toHaveText('(117)');
   await expect(page.locator('#inbox-total')).toHaveText('117');
-  await expect(recipientReply).toHaveCount(0);
+  await expect(newMessage).toHaveCount(0);
+  await expect(playAgain).toBeHidden();
 
   const messageList = page.getByTestId('message-list');
   const initialScrollState = await messageList.evaluate((element) => ({
@@ -318,30 +327,39 @@ test('shows the same 117-message inbox without scrolling and inserts the marked 
 
   const timeUntilPreDeliveryCheck = Math.max(0, 5_250 - (Date.now() - sentAt));
   await page.waitForTimeout(timeUntilPreDeliveryCheck);
-  await expect(recipientReply).toHaveCount(0);
-  await expect(recipientReply).toHaveCount(1, { timeout: 2_000 });
-  await expect(recipientReply.locator('.reply-marker')).toHaveText('REPLY TO YOUR SENT EMAIL');
+  await expect(newMessage).toHaveCount(0);
+  await expect(playAgain).toBeHidden();
+  await expect(newMessage).toHaveCount(1, { timeout: 2_000 });
+  await expect(newMessage).toHaveClass(/\bbackground-message\b/);
+  await expect(newMessage).toHaveClass(/\bunread\b/);
+  await expect(newMessage).not.toHaveClass(/\brecipient-reply\b/);
+  await expect(newMessage.locator('.reply-marker')).toHaveCount(0);
+  await expect(newMessage.locator('.message-subject')).toHaveText(`Re: ${originalSubject}`);
+  expect(await newMessage.evaluate((element) => ({
+    tagName: element.tagName,
+    role: element.getAttribute('role'),
+    tabIndex: (element as HTMLElement).tabIndex,
+  }))).toEqual({ tagName: 'DIV', role: 'listitem', tabIndex: -1 });
   await expect(backgroundRows).toHaveCount(117);
   await expect(page.getByTestId('message-list').getByRole('listitem')).toHaveCount(118);
   await expect(page.locator('#inbox-count')).toHaveText('(118)');
   await expect(page.locator('#inbox-total')).toHaveText('118');
+  await expect(playAgain).toBeVisible();
 });
 
-test('opens the reply and Play Again selects a different scenario', async ({ page }) => {
-  const firstScenarioId = await startScenario(page, 'reply-and-replay');
+test('the new inbox row cannot open and Play Again selects a different scenario', async ({ page }) => {
+  const firstScenarioId = await startScenario(page, 'inbox-and-replay');
   const firstIncomingEmail = await page.getByTestId('incoming-email').innerText();
   await sendReadyDraft(page);
 
   await skipInboxDelay(page);
-  const replyRow = page.getByTestId('recipient-reply-row');
-  await expect(replyRow).toBeVisible();
-  await expect(replyRow.locator('.reply-marker')).toHaveText('REPLY TO YOUR SENT EMAIL');
-  await replyRow.click();
-
-  await expect(page.getByTestId('reply-screen')).toBeVisible();
-  await expect(page.getByTestId('reply-context')).toContainText('Reply to the email you just sent');
-  await expect(page.getByTestId('reply-context')).toContainText('Your sent subject: Re:');
-  await expect(page.getByTestId('recipient-reply')).not.toBeEmpty();
+  const newMessage = page.getByTestId('new-message-row');
+  await expect(newMessage).toBeVisible();
+  await newMessage.click();
+  expect((await getTestState(page)).phase).toBe('inbox');
+  await expect(page.getByTestId('reply-screen')).toHaveCount(0);
+  await expect(page.getByTestId('sent-screen')).toHaveCount(0);
+  await expect(page.getByTestId('view-sent')).toHaveCount(0);
   await page.getByTestId('play-again').click();
 
   await expect(page.getByTestId('compose-screen')).toBeVisible();

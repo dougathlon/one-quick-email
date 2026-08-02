@@ -53,19 +53,21 @@ test('keeps the touch-driven email path usable at the exact phone viewport', asy
 
   const inbox = page.getByTestId('inbox-screen');
   await expect(inbox).toBeVisible();
-  await expect(page.getByTestId('mobile-inbox-note')).toBeVisible();
+  await expect(page.getByTestId('play-again')).toBeHidden();
   await expectNoHorizontalOverflow(page);
 
   await skipInboxDelay(page);
-  const replyRow = page.getByTestId('recipient-reply-row');
-  await expect(replyRow).toBeVisible();
-  await expectInsideViewport(page, replyRow);
-  await touchCenter(page, replyRow);
+  const newMessage = page.getByTestId('new-message-row');
+  await expect(newMessage).toBeVisible();
+  await expectInsideViewport(page, newMessage);
+  await touchCenter(page, newMessage);
 
-  await expect(page.getByTestId('reply-screen')).toBeVisible();
-  await expect(page.getByTestId('reply-context')).toContainText('Reply to the email you just sent');
-  await expect(page.getByTestId('recipient-reply')).not.toBeEmpty();
-  await expectInsideViewport(page, page.getByTestId('play-again'));
-  await expectInsideViewport(page, page.getByTestId('view-sent'));
+  await expect(inbox).toBeVisible();
+  await expect(page.getByTestId('reply-screen')).toHaveCount(0);
+  const playAgain = page.getByTestId('play-again');
+  await expectInsideViewport(page, playAgain);
   await expectNoHorizontalOverflow(page);
+
+  await touchCenter(page, playAgain);
+  await expect(page.getByTestId('compose-screen')).toBeVisible();
 });
