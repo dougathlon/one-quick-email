@@ -110,6 +110,7 @@ export function hasPhysicallyHeldMiniGameKeys(): boolean {
 interface StartRequest {
   readonly id: MiniGameId;
   readonly onComplete: (outcome: MiniGameOutcome) => void;
+  readonly portraitLayout: boolean;
   readonly token: number;
   forcedOutcome?: MiniGameOutcome;
 }
@@ -213,9 +214,18 @@ export class MiniGameHost {
     if (!definition) throw new RangeError(`Unknown mini-game id: ${String(id)}`);
 
     this.cancelCurrentRun();
-    const request: StartRequest = { id, onComplete, token: ++this.nextToken };
+    const portraitLayout = shouldUsePortraitMiniGameLayout({
+      width: this.parent.clientWidth,
+      height: this.parent.clientHeight,
+    });
+    const request: StartRequest = {
+      id,
+      onComplete,
+      portraitLayout,
+      token: ++this.nextToken,
+    };
     this.pendingRequest = request;
-    this.setParentStatus(definition, 'briefing');
+    this.setParentStatus(definition, 'briefing', portraitLayout);
     if (this.booted) this.launchPending();
   }
 
@@ -285,6 +295,7 @@ export class MiniGameHost {
     const data: MiniGameSceneData = {
       audio: this.audio,
       onComplete: (outcome) => this.completeRun(request, definition, outcome),
+      portraitLayout: request.portraitLayout,
       safeAreaInsets: measureSafeAreaInsets(this.parent),
     };
     this.game.scene.start(definition.sceneKey, data);
@@ -320,13 +331,14 @@ export class MiniGameHost {
     this.pendingRequest = null;
   }
 
-  private setParentStatus(definition: MiniGameDefinition, status: string): void {
+  private setParentStatus(
+    definition: MiniGameDefinition,
+    status: string,
+    portraitLayout: boolean,
+  ): void {
     this.parent.dataset.miniGame = definition.id;
     this.parent.dataset.miniGameStatus = status;
-    this.parent.dataset.miniGameLayout = shouldUsePortraitMiniGameLayout({
-      width: this.parent.clientWidth,
-      height: this.parent.clientHeight,
-    }) ? 'portrait' : 'landscape';
+    this.parent.dataset.miniGameLayout = portraitLayout ? 'portrait' : 'landscape';
     this.parent.setAttribute('aria-label', `${definition.title}. ${definition.instruction}`);
     this.parent.focus({ preventScroll: true });
   }

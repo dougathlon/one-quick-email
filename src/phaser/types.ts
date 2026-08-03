@@ -43,5 +43,6 @@ export interface MiniGameVisualTheme {
 export interface MiniGameSceneData {
   readonly audio: MiniGameAudioCallbacks;
   readonly onComplete: (outcome: MiniGameOutcome) => void;
+  readonly portraitLayout: boolean;
   readonly safeAreaInsets: MiniGameSafeAreaInsets;
 }

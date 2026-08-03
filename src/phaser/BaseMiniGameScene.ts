@@ -10,7 +10,6 @@ import {
   canvasPointToMiniGame,
   fitMiniGameViewport,
   NO_SAFE_AREA,
-  shouldUsePortraitMiniGameLayout,
   type MiniGameSafeAreaInsets,
   type MiniGameViewportTransform,
 } from './layout';
@@ -98,11 +97,11 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
     this.stopBriefingKeyTracking = null;
     this.stopBriefingPointerTracking = null;
     this.briefingHeldPointers.clear();
+    this.portraitLayout = data.portraitLayout;
     this.safeAreaInsets = data.safeAreaInsets;
   }
 
   create(): void {
-    this.portraitLayout = shouldUsePortraitMiniGameLayout(this.scale.gameSize);
     this.logicalWidth = this.portraitLayout ? PORTRAIT_DESIGN_WIDTH : DESIGN_WIDTH;
     this.logicalHeight = this.portraitLayout ? PORTRAIT_DESIGN_HEIGHT : DESIGN_HEIGHT;
     this.input.enabled = false;
