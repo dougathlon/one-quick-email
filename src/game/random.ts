@@ -85,32 +85,69 @@ export function selectScenario<T extends Pick<EmailScenario, 'id'>>(
   return selected;
 }
 
-export function selectMiniGame<T extends MiniGameId>(
-  ids: readonly T[],
-  history: readonly MiniGameId[],
-  source: RandomSource = Math.random,
-): T {
-  if (ids.length === 0) {
-    throw new RangeError('cannot select a mini-game from an empty collection');
+export class MiniGameShuffleBag<T extends MiniGameId> {
+  private readonly ids: readonly T[];
+  private remaining: T[] = [];
+  private previous: T | undefined;
+
+  constructor(
+    ids: readonly T[],
+    private readonly source: RandomSource = Math.random,
+  ) {
+    if (ids.length === 0) {
+      throw new RangeError('cannot create a mini-game bag from an empty collection');
+    }
+    if (new Set(ids).size !== ids.length) {
+      throw new RangeError('mini-game bag ids must be unique');
+    }
+    this.ids = [...ids];
   }
 
-  const recent = new Set(history.slice(-2));
-  let pool = ids.filter((id) => !recent.has(id));
+  next(): T {
+    if (this.remaining.length === 0) this.refill();
 
-  // A reduced test/demo pool may contain no option outside the last two. Prefer
-  // avoiding the immediately previous game, then fall back to the only option.
-  if (pool.length === 0) {
-    const mostRecent = history.at(-1);
-    pool = ids.filter((id) => id !== mostRecent);
-  }
-  if (pool.length === 0) {
-    pool = [...ids];
+    const selected = this.remaining.shift();
+    if (selected === undefined) {
+      throw new Error('mini-game bag selection failed');
+    }
+    this.previous = selected;
+    return selected;
   }
 
-  const selected = pool[selectIndex(pool.length, source)];
-  if (selected === undefined) {
-    throw new Error('mini-game selection failed');
+  reset(): void {
+    this.remaining = [];
+    this.previous = undefined;
   }
 
-  return selected;
+  private refill(): void {
+    const bag = [...this.ids];
+
+    // Fisher-Yates gives each new group an independent deterministic shuffle
+    // when the caller supplies a seeded source.
+    for (let index = bag.length - 1; index > 0; index -= 1) {
+      const swapIndex = selectIndex(index + 1, this.source);
+      const current = bag[index];
+      const replacement = bag[swapIndex];
+      if (current === undefined || replacement === undefined) {
+        throw new Error('mini-game bag shuffle failed');
+      }
+      bag[index] = replacement;
+      bag[swapIndex] = current;
+    }
+
+    // Preserve the complete shuffled bag while preventing the last game of one
+    // group from immediately becoming the first game of the next group.
+    if (bag.length > 1 && bag[0] === this.previous) {
+      const replacementIndex = bag.findIndex((id) => id !== this.previous);
+      const first = bag[0];
+      const replacement = bag[replacementIndex];
+      if (first === undefined || replacement === undefined) {
+        throw new Error('mini-game bag boundary adjustment failed');
+      }
+      bag[0] = replacement;
+      bag[replacementIndex] = first;
+    }
+
+    this.remaining = bag;
+  }
 }

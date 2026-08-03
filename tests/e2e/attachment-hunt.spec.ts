@@ -5,7 +5,8 @@ import type { MiniGameId, MiniGameOutcome } from '../../src/game/types';
 interface AttachmentHuntTestHooks {
   forceInterruption?: (id?: MiniGameId) => void;
   completeMiniGame?: (outcome?: MiniGameOutcome) => void;
-  getState?: () => { phase: string };
+  setDraft?: (text: string, caret?: number) => void;
+  getState?: () => { phase: string; draft: string };
 }
 
 type TestWindow = Window & { __ONE_QUICK_EMAIL_TEST__?: AttachmentHuntTestHooks };
@@ -69,29 +70,65 @@ async function targetIndex(page: Page): Promise<number> {
   return index;
 }
 
+async function waitForActiveShuffle(page: Page): Promise<void> {
+  const canvas = page.locator('#phaser-layer canvas');
+  await expect.poll(async () => canvas.evaluate((element) => ({
+    hasShuffled: Number((element as HTMLCanvasElement).dataset.attachmentHuntShuffleGeneration) >= 1,
+    moving: (element as HTMLCanvasElement).dataset.attachmentHuntShuffleInProgress,
+  })), { intervals: [16] }).toEqual({ hasShuffled: true, moving: 'true' });
+}
+
+async function currentTargetCenter(page: Page): Promise<{ x: number; y: number }> {
+  const canvas = page.locator('#phaser-layer canvas');
+  const logicalCenter = await canvas.getAttribute('data-attachment-hunt-target-center');
+  const [logicalX, logicalY] = logicalCenter?.split(',').map(Number) ?? [];
+  if (!Number.isFinite(logicalX) || !Number.isFinite(logicalY)) {
+    throw new Error(`Invalid Attachment Hunt target center: ${String(logicalCenter)}`);
+  }
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('Mini-game canvas has no bounds');
+  const scale = Math.min(box.width / 1_440, box.height / 900);
+  return {
+    x: box.x + (box.width - 1_440 * scale) / 2 + logicalX * scale,
+    y: box.y + (box.height - 900 * scale) / 2 + logicalY * scale,
+  };
+}
+
 test('Attachment Hunt commits the pressed moving window and distinguishes wrong choices', async ({ page }) => {
   await startCompose(page);
   const canvas = page.locator('#phaser-layer canvas');
   const layer = page.locator('#phaser-layer');
+  const editor = page.getByTestId('reply-editor');
+  const draft = 'The moving attachment must not disturb this exact draft.';
+  const caret = 18;
+  await page.evaluate(({ text, position }) => {
+    const hook = (window as TestWindow).__ONE_QUICK_EMAIL_TEST__?.setDraft;
+    if (!hook) throw new Error('Development setDraft hook is unavailable');
+    hook(text, position);
+  }, { text: draft, position: caret });
 
   await startAttachmentHunt(page);
   const firstTarget = await targetIndex(page);
   const decoy = await attachmentWindowCenter(page, (firstTarget + 1) % ATTACHMENT_SLOTS.length);
-  await page.mouse.move(decoy.x, decoy.y);
-  await page.mouse.down();
+  await page.mouse.click(decoy.x, decoy.y);
   await expect(canvas).toHaveAttribute('data-attachment-hunt-last-choice', 'incorrect');
   await expect(layer).toHaveAttribute('data-mini-game-status', 'playing');
-  await page.mouse.up();
   await finishCurrentMiniGame(page);
 
   await startAttachmentHunt(page);
-  const secondTarget = await attachmentWindowCenter(page, await targetIndex(page));
-  await page.mouse.move(secondTarget.x, secondTarget.y);
-  await page.mouse.down();
+  await waitForActiveShuffle(page);
+  await page.waitForTimeout(210);
+  const secondTarget = await currentTargetCenter(page);
+  await page.mouse.click(secondTarget.x, secondTarget.y);
   await expect(canvas).toHaveAttribute('data-attachment-hunt-last-choice', 'correct');
-  await page.mouse.up();
   await expect.poll(async () => page.evaluate(
     () => (window as TestWindow).__ONE_QUICK_EMAIL_TEST__?.getState?.()?.phase,
   )).toBe('compose');
   await expect(layer).toHaveAttribute('data-mini-game-status', 'success');
+  await expect(editor).toBeFocused();
+  await expect(editor).toHaveValue(draft);
+  expect(await editor.evaluate((element) => {
+    const textarea = element as HTMLTextAreaElement;
+    return [textarea.selectionStart, textarea.selectionEnd];
+  })).toEqual([caret, caret]);
 });

@@ -1,7 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-type MiniGameId = 'paper-jam' | 'quick-question';
-type MiniGameOutcome = 'success' | 'timeout';
+import type { MiniGameId, MiniGameOutcome } from '../../src/game/types';
 
 interface BrowserTestState {
   phase: 'title' | 'compose' | 'minigame' | 'inbox';
@@ -68,6 +67,18 @@ async function forceInterruption(page: Page, id: MiniGameId): Promise<void> {
     if (!hook) throw new Error('Development forceInterruption hook is unavailable');
     hook(miniGameId);
   }, id);
+}
+
+async function forceNextRotatedInterruption(page: Page): Promise<MiniGameId> {
+  await page.evaluate(() => {
+    const hook = (window as TestWindow).__ONE_QUICK_EMAIL_TEST__?.forceInterruption;
+    if (!hook) throw new Error('Development forceInterruption hook is unavailable');
+    hook();
+  });
+  await expect.poll(async () => (await getTestState(page)).phase).toBe('minigame');
+  const id = (await getTestState(page)).activeMiniGame;
+  if (!id) throw new Error('Rotated interruption did not select a mini-game');
+  return id as MiniGameId;
 }
 
 async function completeMiniGame(page: Page, outcome: MiniGameOutcome): Promise<void> {
@@ -198,6 +209,34 @@ test('keeps Send disabled at 99 words and enables it at exactly 100', async ({ p
   await expect(page.getByTestId('word-count')).toHaveText('100 words');
   await expect(page.getByTestId('word-requirement')).toHaveText('Ready to send');
   await expect(send).toBeEnabled();
+});
+
+test('schedules every mini-game once in each shuffled block of ten', async ({ page }) => {
+  test.setTimeout(45_000);
+  await startScenario(page, 'complete-mini-game-bags');
+  const expected = [
+    'calendar-collision',
+    'reply-all-intercept',
+    'paper-jam',
+    'hold-music-hero',
+    'stamp-of-approval',
+    'expense-triage',
+    'quick-question',
+    'phone-transfer',
+    'badge-scan',
+    'attachment-hunt',
+  ] satisfies MiniGameId[];
+  const draws: MiniGameId[] = [];
+
+  for (let index = 0; index < 20; index += 1) {
+    draws.push(await forceNextRotatedInterruption(page));
+    await completeMiniGame(page, 'success');
+    await expect.poll(async () => (await getTestState(page)).phase).toBe('compose');
+  }
+
+  expect([...draws.slice(0, 10)].sort()).toEqual([...expected].sort());
+  expect([...draws.slice(10, 20)].sort()).toEqual([...expected].sort());
+  expect(draws[10]).not.toBe(draws[9]);
 });
 
 test('holds a typing key through briefing, then restores the exact draft and caret', async ({ page }) => {

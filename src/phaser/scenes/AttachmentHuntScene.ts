@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import { resolveAttachmentHit } from '../../game/attachmentHit';
 import { BaseMiniGameScene, PALETTE } from '../BaseMiniGameScene';
 import type { MiniGameDefinition } from '../types';
 
@@ -26,6 +27,8 @@ interface FileWindow {
   readonly surface: Phaser.GameObjects.Rectangle;
   readonly filename: string;
   readonly target: boolean;
+  readonly width: number;
+  readonly height: number;
 }
 
 const SLOTS: ReadonlyArray<readonly [number, number]> = [
@@ -57,6 +60,8 @@ function wrapFilename(filename: string, lineLength = FILENAME_LINE_LENGTH): stri
 export class AttachmentHuntScene extends BaseMiniGameScene {
   private files: FileWindow[] = [];
   private selectedIndex = 0;
+  private shuffleGeneration = 0;
+  private shuffleInProgress = false;
   private slots: ReadonlyArray<readonly [number, number]> = SLOTS;
 
   constructor() {
@@ -66,6 +71,8 @@ export class AttachmentHuntScene extends BaseMiniGameScene {
   protected buildGame(): void {
     this.files = [];
     this.selectedIndex = 0;
+    this.shuffleGeneration = 0;
+    this.shuffleInProgress = false;
     this.slots = this.isPortrait
       ? [
           [165, 410],
@@ -84,6 +91,12 @@ export class AttachmentHuntScene extends BaseMiniGameScene {
     if (import.meta.env.DEV) {
       this.game.canvas.dataset.attachmentHuntTargetIndex = String(filenames.indexOf(targetName));
       delete this.game.canvas.dataset.attachmentHuntLastChoice;
+      delete this.game.canvas.dataset.attachmentHuntTargetCenter;
+      delete this.game.canvas.dataset.attachmentHuntLastPointer;
+      delete this.game.canvas.dataset.attachmentHuntLastResolvedCenter;
+      delete this.game.canvas.dataset.attachmentHuntLastResolvedFile;
+      this.game.canvas.dataset.attachmentHuntShuffleGeneration = '0';
+      this.game.canvas.dataset.attachmentHuntShuffleInProgress = 'false';
     }
 
     this.addText(this.isPortrait ? 300 : 720, this.isPortrait ? 255 : 248, `FIND: ${targetName}`, this.isPortrait ? 23 : 28, '#14213d', {
@@ -117,9 +130,20 @@ export class AttachmentHuntScene extends BaseMiniGameScene {
       container.setSize(windowWidth, windowHeight).setInteractive({ useHandCursor: true });
       this.gameLayer.add(container);
 
-      const file: FileWindow = { container, surface, filename, target: filename === targetName };
+      const file: FileWindow = {
+        container,
+        surface,
+        filename,
+        target: filename === targetName,
+        width: windowWidth,
+        height: windowHeight,
+      };
       this.files.push(file);
-      this.listen(container, Phaser.Input.Events.POINTER_DOWN, () => this.choose(file));
+    });
+
+    this.listen(this.input, Phaser.Input.Events.POINTER_DOWN, (pointer: Phaser.Input.Pointer) => {
+      const file = this.fileAtPointer(pointer);
+      if (file) this.choose(file);
     });
 
     this.onKey('keydown', (event) => {
@@ -149,6 +173,15 @@ export class AttachmentHuntScene extends BaseMiniGameScene {
     });
   }
 
+  protected updateGame(): void {
+    if (!import.meta.env.DEV) return;
+    const target = this.files.find((file) => file.target);
+    if (!target) return;
+    this.game.canvas.dataset.attachmentHuntTargetCenter = `${target.container.x},${target.container.y}`;
+    this.game.canvas.dataset.attachmentHuntShuffleGeneration = String(this.shuffleGeneration);
+    this.game.canvas.dataset.attachmentHuntShuffleInProgress = String(this.shuffleInProgress);
+  }
+
   private choose(file: FileWindow): void {
     if (!this.isPlaying) return;
     if (import.meta.env.DEV) {
@@ -162,8 +195,32 @@ export class AttachmentHuntScene extends BaseMiniGameScene {
     this.pulse(file.container);
   }
 
+  private fileAtPointer(pointer: Phaser.Input.Pointer): FileWindow | undefined {
+    const point = this.pointerToGame(pointer);
+    const file = resolveAttachmentHit(this.files.map((candidate) => ({
+      value: candidate,
+      target: candidate.target,
+      x: candidate.container.x,
+      y: candidate.container.y,
+      width: candidate.width,
+      height: candidate.height,
+      rotation: candidate.container.rotation,
+    })), point);
+    if (import.meta.env.DEV) {
+      this.game.canvas.dataset.attachmentHuntLastPointer = `${point.x},${point.y}`;
+      this.game.canvas.dataset.attachmentHuntLastResolvedCenter = file
+        ? `${file.container.x},${file.container.y}`
+        : 'none';
+      this.game.canvas.dataset.attachmentHuntLastResolvedFile = file?.filename ?? 'none';
+    }
+    return file;
+  }
+
   private shuffleWindows(): void {
     if (!this.isPlaying) return;
+    this.shuffleGeneration += 1;
+    this.shuffleInProgress = true;
+    let unfinishedTweens = this.files.length;
     const positions = Phaser.Utils.Array.Shuffle([...this.slots]);
     this.files.forEach((file, index) => {
       const position = positions[index] ?? this.slots[index] ?? [this.viewWidth / 2, this.viewHeight / 2];
@@ -174,6 +231,10 @@ export class AttachmentHuntScene extends BaseMiniGameScene {
         angle: Phaser.Math.Between(-2, 2),
         duration: 460,
         ease: 'Cubic.easeInOut',
+        onComplete: () => {
+          unfinishedTweens -= 1;
+          if (unfinishedTweens === 0) this.shuffleInProgress = false;
+        },
       });
     });
   }

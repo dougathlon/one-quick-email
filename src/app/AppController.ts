@@ -3,7 +3,12 @@ import { INBOX_MESSAGES } from '../data/inbox';
 import { SCENARIOS } from '../data/scenarios';
 import { attachEditorGuards } from '../game/editorGuards';
 import { InterruptionScheduler } from '../game/InterruptionScheduler';
-import { SeededRandom, selectMiniGame, selectScenario, type RandomSource } from '../game/random';
+import {
+  MiniGameShuffleBag,
+  SeededRandom,
+  selectScenario,
+  type RandomSource,
+} from '../game/random';
 import type {
   DraftSnapshot,
   EmailScenario,
@@ -56,7 +61,6 @@ interface ApplicationState {
   wordCount: number;
   snapshot: DraftSnapshot;
   interruptionStarted: boolean;
-  miniGameHistory: MiniGameId[];
   activeMiniGame: MiniGameId | null;
   inboxMessages: InboxMessage[];
   newMessageArrived: boolean;
@@ -66,6 +70,7 @@ export class AppController {
   private readonly audio = new AudioManager();
   private readonly releaseMiniGamePhysicalKeyTracking = retainMiniGamePhysicalKeyTracking();
   private readonly random: RandomSource;
+  private readonly miniGameRotation: MiniGameShuffleBag<MiniGameId>;
   private readonly view: AppView;
   private readonly scheduler: InterruptionScheduler;
   private state: ApplicationState = this.freshState();
@@ -83,6 +88,7 @@ export class AppController {
 
   constructor(root: HTMLElement, phaserLayer: HTMLElement) {
     this.random = this.createRandomSource();
+    this.miniGameRotation = new MiniGameShuffleBag(MINI_GAMES, this.random);
     this.scheduler = new InterruptionScheduler(() => this.startMiniGame(), this.random);
     this.view = new AppView(root, phaserLayer, {
       onStartWork: () => this.startWork(),
@@ -123,6 +129,7 @@ export class AppController {
 
   private beginScenario(): void {
     this.scheduler.stop();
+    this.miniGameRotation.reset();
     this.clearInboxTimer();
     this.removeMiniGameInputShield();
     this.detachEditor();
@@ -212,9 +219,7 @@ export class AppController {
       return;
     }
     this.captureEditorPosition();
-    const id = forcedId ?? selectMiniGame(MINI_GAMES, this.state.miniGameHistory, this.random);
-    this.state.miniGameHistory.push(id);
-    this.state.miniGameHistory = this.state.miniGameHistory.slice(-2);
+    const id = forcedId ?? this.miniGameRotation.next();
     this.state.activeMiniGame = id;
     this.state.phase = 'minigame';
     this.scheduler.pause();
@@ -406,7 +411,6 @@ export class AppController {
       wordCount: 0,
       snapshot: { text: '', selectionStart: 0, selectionEnd: 0, scrollTop: 0, scrollLeft: 0 },
       interruptionStarted: false,
-      miniGameHistory: [],
       activeMiniGame: null,
       inboxMessages: [],
       newMessageArrived: false,

@@ -69,3 +69,47 @@ test('fits every Phaser interruption and isolates the draft from real touch inpu
     })).toEqual([caret, caret]);
   }
 });
+
+test('selects the correct Attachment Hunt window by touch during a shuffle', async ({ page }, testInfo) => {
+  await page.goto(`/?test=1&seed=attachment-touch-${testInfo.project.name}`);
+  await expectMobileEnvironment(page, testInfo);
+  await touchCenter(page, page.getByTestId('start-work'));
+  await expect(page.getByTestId('compose-screen')).toBeVisible();
+
+  const layer = page.locator('#phaser-layer');
+  const canvas = layer.locator('canvas');
+  const editor = page.getByTestId('reply-editor');
+  const draft = 'A correct touch must leave this mobile email draft unchanged.';
+  const caret = 21;
+  await setDraft(page, draft, caret);
+  await forceInterruption(page, 'attachment-hunt');
+
+  await expect(layer).toHaveAttribute('data-mini-game-status', 'playing', { timeout: 4_000 });
+  await expect.poll(async () => canvas.evaluate((element) => ({
+    hasShuffled: Number((element as HTMLCanvasElement).dataset.attachmentHuntShuffleGeneration) >= 1,
+    moving: (element as HTMLCanvasElement).dataset.attachmentHuntShuffleInProgress,
+  })), { intervals: [16] }).toEqual({ hasShuffled: true, moving: 'true' });
+  await page.waitForTimeout(210);
+
+  const logicalCenter = await canvas.getAttribute('data-attachment-hunt-target-center');
+  const [logicalX, logicalY] = logicalCenter?.split(',').map(Number) ?? [];
+  if (!Number.isFinite(logicalX) || !Number.isFinite(logicalY)) {
+    throw new Error(`Invalid Attachment Hunt target center: ${String(logicalCenter)}`);
+  }
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('Attachment Hunt canvas has no touchable bounds');
+  const scale = Math.min(box.width / 600, box.height / 1_200);
+  const targetX = box.x + (box.width - 600 * scale) / 2 + logicalX * scale;
+  const targetY = box.y + (box.height - 1_200 * scale) / 2 + logicalY * scale;
+
+  await page.touchscreen.tap(targetX, targetY);
+  await expect(canvas).toHaveAttribute('data-attachment-hunt-last-choice', 'correct');
+  await expect.poll(async () => (await getTestState(page)).phase).toBe('compose');
+  await expect(layer).toHaveAttribute('data-mini-game-status', 'success');
+  await expect(editor).toBeFocused();
+  await expect(editor).toHaveValue(draft);
+  expect(await editor.evaluate((element) => {
+    const textarea = element as HTMLTextAreaElement;
+    return [textarea.selectionStart, textarea.selectionEnd];
+  })).toEqual([caret, caret]);
+});

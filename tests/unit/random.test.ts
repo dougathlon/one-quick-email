@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  MiniGameShuffleBag,
   randomInterruptionInterval,
   SeededRandom,
-  selectMiniGame,
   selectScenario,
 } from '../../src/game/random';
 import type { MiniGameId } from '../../src/game/types';
@@ -56,24 +56,65 @@ describe('random selection', () => {
     expect(() => selectScenario([], null)).toThrow(RangeError);
   });
 
-  it('excludes the previous two mini-games from rotation', () => {
-    const ids = [
-      'calendar-collision',
-      'reply-all-intercept',
-      'paper-jam',
-      'hold-music-hero',
-    ] satisfies MiniGameId[];
+});
 
-    expect(selectMiniGame(ids, ['calendar-collision', 'reply-all-intercept'], () => 0))
-      .toBe('paper-jam');
-    expect(selectMiniGame(ids, ['calendar-collision', 'reply-all-intercept'], () => 1))
-      .toBe('hold-music-hero');
+const MINI_GAME_IDS = [
+  'calendar-collision',
+  'reply-all-intercept',
+  'paper-jam',
+  'hold-music-hero',
+  'stamp-of-approval',
+  'expense-triage',
+  'quick-question',
+  'phone-transfer',
+  'badge-scan',
+  'attachment-hunt',
+] satisfies MiniGameId[];
+
+describe('MiniGameShuffleBag', () => {
+  it('plays every mini-game exactly once in each consecutive group of ten', () => {
+    const rotation = new MiniGameShuffleBag(MINI_GAME_IDS, new SeededRandom('three-bags'));
+    const draws = Array.from({ length: 30 }, () => rotation.next());
+    const expected = [...MINI_GAME_IDS].sort();
+
+    for (let start = 0; start < draws.length; start += MINI_GAME_IDS.length) {
+      const group = draws.slice(start, start + MINI_GAME_IDS.length);
+      expect(group).toHaveLength(MINI_GAME_IDS.length);
+      expect([...group].sort()).toEqual(expected);
+    }
   });
 
-  it('degrades safely for tiny mini-game pools', () => {
-    const pair = ['calendar-collision', 'reply-all-intercept'] satisfies MiniGameId[];
-    expect(selectMiniGame(pair, pair, () => 0)).toBe('calendar-collision');
-    expect(selectMiniGame(['paper-jam'], ['paper-jam'], () => 0)).toBe('paper-jam');
-    expect(() => selectMiniGame([], [])).toThrow(RangeError);
+  it('does not repeat a mini-game at bag boundaries', () => {
+    const rotation = new MiniGameShuffleBag(MINI_GAME_IDS, new SeededRandom('many-bags'));
+    const draws = Array.from({ length: MINI_GAME_IDS.length * 20 }, () => rotation.next());
+
+    for (let index = MINI_GAME_IDS.length; index < draws.length; index += MINI_GAME_IDS.length) {
+      expect(draws[index]).not.toBe(draws[index - 1]);
+    }
+  });
+
+  it('is deterministic for a seeded source', () => {
+    const first = new MiniGameShuffleBag(MINI_GAME_IDS, new SeededRandom('rotation-seed'));
+    const second = new MiniGameShuffleBag(MINI_GAME_IDS, new SeededRandom('rotation-seed'));
+
+    expect(Array.from({ length: 25 }, () => first.next()))
+      .toEqual(Array.from({ length: 25 }, () => second.next()));
+  });
+
+  it('discards a partial bag when reset for a new playthrough', () => {
+    const rotation = new MiniGameShuffleBag(MINI_GAME_IDS, new SeededRandom('reset-seed'));
+    Array.from({ length: 4 }, () => rotation.next());
+
+    rotation.reset();
+    const newPlaythroughBag = Array.from({ length: MINI_GAME_IDS.length }, () => rotation.next());
+
+    expect([...newPlaythroughBag].sort()).toEqual([...MINI_GAME_IDS].sort());
+  });
+
+  it('supports a one-game bag and rejects invalid collections', () => {
+    const single = new MiniGameShuffleBag(['paper-jam'], () => 0);
+    expect([single.next(), single.next()]).toEqual(['paper-jam', 'paper-jam']);
+    expect(() => new MiniGameShuffleBag([], () => 0)).toThrow(RangeError);
+    expect(() => new MiniGameShuffleBag(['paper-jam', 'paper-jam'], () => 0)).toThrow(RangeError);
   });
 });
