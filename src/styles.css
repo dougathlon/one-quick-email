@@ -11,6 +11,8 @@
   --title-end: #7893ad;
   --selection: #163f78;
   --paper: #fffef8;
+  --new-mail-highlight: #fff0a6;
+  --new-mail-border: #244f83;
 }
 
 * { box-sizing: border-box; }
@@ -302,8 +304,8 @@ button { color: inherit; }
 .compose-status strong { color: #862b23; }
 .compose-status strong.ready { color: #27642c; }
 
+.inbox-screen { position: relative; }
 .inbox-path { color: #333; }
-.inbox-play-again { flex: 0 0 auto; min-width: 104px; font-weight: 700; }
 .inbox-workspace { grid-template-columns: 206px minmax(0, 1fr); }
 .message-list-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: #fff; }
 .message-list-header,
@@ -317,6 +319,118 @@ button { color: inherit; }
 .message-row > * { min-width: 0; padding: 4px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .message-row.unread { font-weight: 700; color: #102b4c; }
 .message-icon { text-align: center; color: #385d87; }
+
+.message-row.new-message-arrival,
+.message-row.new-message-arrival:nth-child(even) {
+  position: relative;
+  z-index: 2;
+  color: #102b4c;
+  background: var(--new-mail-highlight);
+  box-shadow: inset 0 0 0 2px var(--new-mail-border), 0 2px 0 rgba(26, 48, 75, .24);
+  animation: new-message-row-highlight 420ms steps(2, end) 4;
+}
+
+.message-row.new-message-arrival .message-icon {
+  color: #fff;
+  background: var(--new-mail-border);
+}
+
+.new-mail-notification,
+.play-again-prompt {
+  position: absolute;
+  z-index: 30;
+  border: 3px solid;
+  border-color: var(--chrome-light) var(--chrome-dark) var(--chrome-dark) var(--chrome-light);
+  background: var(--chrome);
+  box-shadow: 6px 7px 0 rgba(17, 30, 31, .35);
+}
+
+.new-mail-notification[hidden],
+.play-again-prompt[hidden] { display: none; }
+
+.new-mail-notification {
+  top: 94px;
+  right: 34px;
+  display: flex;
+  align-items: center;
+  width: 230px;
+  min-height: 66px;
+  padding: 10px 12px;
+  gap: 11px;
+  color: #102744;
+  font-size: 12px;
+  pointer-events: none;
+  animation: new-mail-notification 3400ms ease-out forwards;
+}
+
+.new-mail-notification::before {
+  content: 'Macrohard Office';
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 18px;
+  padding: 2px 5px;
+  color: #fff;
+  background: linear-gradient(90deg, var(--title-start), var(--title-end));
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.new-mail-notification-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 30px;
+  margin-top: 13px;
+  flex: 0 0 auto;
+  border: 2px solid #1e3656;
+  color: #163f78;
+  background: #fff9ce;
+  font-size: 20px;
+}
+
+.new-mail-notification > span:last-child { margin-top: 13px; }
+.new-mail-notification strong { display: block; }
+.new-mail-notification small { display: block; margin-top: 3px; color: #555; font-size: 10px; }
+
+.play-again-prompt {
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 246px;
+  min-height: 108px;
+  padding: 22px;
+  transform: translate(-50%, -50%);
+  animation: play-again-prompt-in 180ms steps(2, end) both;
+}
+
+.inbox-play-again {
+  min-width: 170px;
+  min-height: 52px;
+  padding: 8px 20px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.inbox-play-again:active:not(:disabled) { padding: 9px 19px 7px 21px; }
+
+@keyframes new-message-row-highlight {
+  0%, 49% { background: #fff; box-shadow: inset 0 0 0 2px var(--new-mail-border); }
+  50%, 100% { background: var(--new-mail-highlight); box-shadow: inset 0 0 0 2px var(--new-mail-border), 0 2px 0 rgba(26, 48, 75, .24); }
+}
+
+@keyframes new-mail-notification {
+  0% { opacity: 0; transform: translateX(34px); }
+  5%, 76% { opacity: 1; transform: translateX(0); }
+  100% { opacity: 0; transform: translateX(0); }
+}
+
+@keyframes play-again-prompt-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(.92); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
 
 #phaser-layer {
   position: fixed;
@@ -536,9 +650,35 @@ button { color: inherit; }
   .message-row > .message-sender { grid-area: sender; padding-bottom: 1px; }
   .message-row > .message-subject { grid-area: subject; padding-top: 1px; }
   .message-row > time { grid-area: time; padding-bottom: 1px; text-align: right; }
+
+  .new-mail-notification {
+    top: auto;
+    right: max(8px, env(safe-area-inset-right));
+    bottom: calc(max(6px, env(safe-area-inset-bottom)) + 52px);
+    width: min(230px, calc(100vw - 16px));
+  }
+
+  .play-again-prompt {
+    width: min(246px, calc(100vw - 32px));
+    min-height: 106px;
+    padding: 20px;
+    box-shadow: 4px 5px 0 rgba(17, 30, 31, .35);
+  }
+
+  .inbox-play-again {
+    width: 100%;
+    min-height: 52px;
+  }
+
   #phaser-layer {
     width: 100%;
     height: 100vh;
     height: 100dvh;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-row.new-message-arrival,
+  .new-mail-notification,
+  .play-again-prompt { animation: none; }
 }

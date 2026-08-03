@@ -99,12 +99,23 @@ for (const viewport of PHONE_VIEWPORTS) {
     await expect(page.getByTestId('inbox-screen')).toBeVisible();
     await expect(page.getByTestId('message-list')).toHaveCSS('overflow-y', 'hidden');
     await expect(page.getByTestId('play-again')).toBeHidden();
+    await expect(page.getByTestId('play-again-prompt')).toBeHidden();
+    await expect(page.getByTestId('new-mail-notification')).toBeHidden();
     await expectPageContained(page);
 
     await skipInboxDelay(page);
     const newMessage = page.getByTestId('new-message-row');
+    const notification = page.getByTestId('new-mail-notification');
+    const playAgainPrompt = page.getByTestId('play-again-prompt');
     await expect(newMessage).toBeVisible();
     await expect(newMessage).toHaveClass(/\bbackground-message\b/);
+    await expect(newMessage).toHaveClass(/\bnew-message-arrival\b/);
+    await expect(newMessage).toHaveCSS('background-color', 'rgb(255, 240, 166)');
+    await expect(notification).toContainText('New message received');
+    await expect(notification).not.toHaveAttribute('hidden', '');
+    await expectWithinViewport(page, notification);
+    await expect(playAgainPrompt).toBeVisible();
+    await expectWithinViewport(page, playAgainPrompt);
     expect((await newMessage.boundingBox())?.height).toBeGreaterThanOrEqual(44);
     await newMessage.click();
     await expect(page.getByTestId('inbox-screen')).toBeVisible();
@@ -112,7 +123,17 @@ for (const viewport of PHONE_VIEWPORTS) {
 
     const playAgain = page.getByTestId('play-again');
     await expectWithinViewport(page, playAgain);
-    expect((await playAgain.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+    const promptBox = await playAgainPrompt.boundingBox();
+    const buttonBox = await playAgain.boundingBox();
+    expect(promptBox).not.toBeNull();
+    expect(buttonBox).not.toBeNull();
+    if (promptBox && buttonBox) {
+      expect(Math.abs(promptBox.x + promptBox.width / 2 - viewport.width / 2)).toBeLessThanOrEqual(2);
+      expect(Math.abs(promptBox.y + promptBox.height / 2 - viewport.height / 2)).toBeLessThanOrEqual(2);
+      expect(buttonBox.width).toBeGreaterThanOrEqual(160);
+      expect(buttonBox.height).toBeGreaterThanOrEqual(48);
+    }
+    expect(await page.locator('.inbox-toolbar').getByTestId('play-again').count()).toBe(0);
     await expectPageContained(page);
 
     await playAgain.click();

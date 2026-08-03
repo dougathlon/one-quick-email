@@ -81,6 +81,11 @@ export class AttachmentHuntScene extends BaseMiniGameScene {
     const decoys = selectedSet?.[1] ?? [];
     const filenames = Phaser.Utils.Array.Shuffle([targetName, ...decoys]);
 
+    if (import.meta.env.DEV) {
+      this.game.canvas.dataset.attachmentHuntTargetIndex = String(filenames.indexOf(targetName));
+      delete this.game.canvas.dataset.attachmentHuntLastChoice;
+    }
+
     this.addText(this.isPortrait ? 300 : 720, this.isPortrait ? 255 : 248, `FIND: ${targetName}`, this.isPortrait ? 23 : 28, '#14213d', {
       backgroundColor: '#ffd447',
       padding: { x: this.isPortrait ? 12 : 20, y: 11 },
@@ -114,7 +119,7 @@ export class AttachmentHuntScene extends BaseMiniGameScene {
 
       const file: FileWindow = { container, surface, filename, target: filename === targetName };
       this.files.push(file);
-      this.listen(container, Phaser.Input.Events.POINTER_UP, () => this.choose(file));
+      this.listen(container, Phaser.Input.Events.POINTER_DOWN, () => this.choose(file));
     });
 
     this.onKey('keydown', (event) => {
@@ -146,6 +151,9 @@ export class AttachmentHuntScene extends BaseMiniGameScene {
 
   private choose(file: FileWindow): void {
     if (!this.isPlaying) return;
+    if (import.meta.env.DEV) {
+      this.game.canvas.dataset.attachmentHuntLastChoice = file.target ? 'correct' : 'incorrect';
+    }
     if (file.target) {
       this.succeed();
       return;

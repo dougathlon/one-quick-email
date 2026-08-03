@@ -147,8 +147,6 @@ export class AppView {
           <div class="toolbar inbox-toolbar">
             <button class="tool-button" disabled>✉</button><button class="tool-button" disabled>↶</button><button class="tool-button" disabled>↷</button>
             <span class="toolbar-divider"></span><span class="inbox-path">Personal Folders ▸ Inbox</span>
-            <span class="toolbar-spacer"></span>
-            <button id="play-again" class="bevel-button inbox-play-again" type="button" data-testid="play-again" hidden>Play Again?</button>
           </div>
           <div class="mail-workspace inbox-workspace">
             <aside class="folder-pane">
@@ -170,6 +168,13 @@ export class AppView {
           </div>
           <div class="window-status"><span><strong id="inbox-total">${messages.length}</strong> messages</span><span>Online</span></div>
         </section>
+        <div id="new-mail-notification" class="new-mail-notification" data-testid="new-mail-notification" role="status" aria-live="assertive" hidden>
+          <span class="new-mail-notification-icon" aria-hidden="true">✉</span>
+          <span><strong>New message received</strong><small>Inbox</small></span>
+        </div>
+        <div id="play-again-prompt" class="play-again-prompt" data-testid="play-again-prompt" hidden>
+          <button id="play-again" class="bevel-button primary-button inbox-play-again" type="button" data-testid="play-again">Play Again</button>
+        </div>
         ${this.muteButton(muted)}
       </main>`;
     this.queryButton('#play-again').addEventListener('click', this.callbacks.onPlayAgain);
@@ -186,8 +191,10 @@ export class AppView {
     if (count) count.textContent = `(${total})`;
     const footerTotal = this.root.querySelector('#inbox-total');
     if (footerTotal) footerTotal.textContent = String(total);
-    const playAgain = this.root.querySelector<HTMLButtonElement>('#play-again');
-    if (playAgain) playAgain.hidden = false;
+    const notification = this.root.querySelector<HTMLElement>('#new-mail-notification');
+    if (notification) notification.hidden = false;
+    const playAgainPrompt = this.root.querySelector<HTMLElement>('#play-again-prompt');
+    if (playAgainPrompt) playAgainPrompt.hidden = false;
   }
 
   updateMuteButton(muted: boolean): void {
@@ -206,7 +213,8 @@ export class AppView {
     const testAttributes = arrivingMessage
       ? 'data-new-message="true" data-testid="new-message-row"'
       : 'data-testid="background-message"';
-    return `<div class="message-row background-message ${message.unread ? 'unread' : ''}" role="listitem" ${testAttributes}>${content}</div>`;
+    const arrivalClass = arrivingMessage ? ' new-message-arrival' : '';
+    return `<div class="message-row background-message ${message.unread ? 'unread' : ''}${arrivalClass}" role="listitem" ${testAttributes}>${content}</div>`;
   }
 
   private mailTitlebar(title: string): string {

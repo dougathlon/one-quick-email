@@ -360,6 +360,9 @@ export class MiniGameHost {
       'pointermove',
       'pointerup',
       'pointercancel',
+      'mousedown',
+      'mousemove',
+      'mouseup',
       'touchstart',
       'touchmove',
       'touchend',
@@ -372,7 +375,9 @@ export class MiniGameHost {
     ] as const;
     const blockLeak = (event: Event): void => {
       if (!this.pendingRequest && !this.launching && !this.active) return;
-      if (event.cancelable) event.preventDefault();
+      const isMousePointerEvent = event.type.startsWith('pointer')
+        && (event as PointerEvent).pointerType === 'mouse';
+      if (event.cancelable && !isMousePointerEvent) event.preventDefault();
       event.stopPropagation();
       if (event.type === 'pointerdown' || event.type === 'touchstart') {
         this.parent.focus({ preventScroll: true });

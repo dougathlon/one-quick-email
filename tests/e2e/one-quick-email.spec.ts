@@ -109,7 +109,9 @@ test('loads the title screen and starts a deterministic email scenario', async (
   const scenarioId = await startScenario(page, 'load-and-start');
 
   expect(scenarioId.length).toBeGreaterThan(0);
-  await expect(page.getByTestId('incoming-email').locator('p')).toHaveCount(5);
+  const paragraphCount = await page.getByTestId('incoming-email').locator('p').count();
+  expect(paragraphCount).toBeGreaterThanOrEqual(5);
+  expect(paragraphCount).toBeLessThanOrEqual(7);
   await expect(page.getByTestId('reply-brief')).toHaveCount(0);
   await expect(page.getByText('HOW TO REPLY')).toHaveCount(0);
   await expect(page.getByTestId('reply-editor')).toHaveAttribute('aria-describedby', 'word-requirement');
@@ -295,19 +297,23 @@ test('waits for a held Quick Question key to be released before restoring editor
   })).toEqual([caret, caret]);
 });
 
-test('shows 117 fixed inbox rows and inserts one ordinary unread Re message after six seconds', async ({ page }) => {
+test('shows 117 fixed inbox rows, then clearly announces and highlights the unread Re message', async ({ page }) => {
   await startScenario(page, 'real-reply-delay');
   const originalSubject = await page.getByTestId('incoming-subject').innerText();
   const sentAt = await sendReadyDraft(page);
 
   const backgroundRows = page.getByTestId('background-message');
   const newMessage = page.getByTestId('new-message-row');
+  const notification = page.getByTestId('new-mail-notification');
+  const playAgainPrompt = page.getByTestId('play-again-prompt');
   const playAgain = page.getByTestId('play-again');
   await expect(backgroundRows).toHaveCount(117);
   await expect(page.getByTestId('message-list').getByRole('listitem')).toHaveCount(117);
   await expect(page.locator('#inbox-count')).toHaveText('(117)');
   await expect(page.locator('#inbox-total')).toHaveText('117');
   await expect(newMessage).toHaveCount(0);
+  await expect(notification).toBeHidden();
+  await expect(playAgainPrompt).toBeHidden();
   await expect(playAgain).toBeHidden();
 
   const messageList = page.getByTestId('message-list');
@@ -332,6 +338,7 @@ test('shows 117 fixed inbox rows and inserts one ordinary unread Re message afte
   await expect(newMessage).toHaveCount(1, { timeout: 2_000 });
   await expect(newMessage).toHaveClass(/\bbackground-message\b/);
   await expect(newMessage).toHaveClass(/\bunread\b/);
+  await expect(newMessage).toHaveClass(/\bnew-message-arrival\b/);
   await expect(newMessage).not.toHaveClass(/\brecipient-reply\b/);
   await expect(newMessage.locator('.reply-marker')).toHaveCount(0);
   await expect(newMessage.locator('.message-subject')).toHaveText(`Re: ${originalSubject}`);
@@ -344,7 +351,27 @@ test('shows 117 fixed inbox rows and inserts one ordinary unread Re message afte
   await expect(page.getByTestId('message-list').getByRole('listitem')).toHaveCount(118);
   await expect(page.locator('#inbox-count')).toHaveText('(118)');
   await expect(page.locator('#inbox-total')).toHaveText('118');
+  await expect(notification).toContainText('New message received');
+  await expect(notification).not.toHaveAttribute('hidden', '');
+  await expect(playAgainPrompt).toBeVisible();
   await expect(playAgain).toBeVisible();
+
+  expect(await newMessage.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe('none');
+  await expect(newMessage).toHaveCSS('background-color', 'rgb(255, 240, 166)');
+
+  expect(await page.locator('.inbox-toolbar').getByTestId('play-again').count()).toBe(0);
+  const promptBox = await playAgainPrompt.boundingBox();
+  const buttonBox = await playAgain.boundingBox();
+  const viewport = page.viewportSize();
+  expect(promptBox).not.toBeNull();
+  expect(buttonBox).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  if (promptBox && buttonBox && viewport) {
+    expect(Math.abs(promptBox.x + promptBox.width / 2 - viewport.width / 2)).toBeLessThanOrEqual(2);
+    expect(Math.abs(promptBox.y + promptBox.height / 2 - viewport.height / 2)).toBeLessThanOrEqual(2);
+    expect(buttonBox.width).toBeGreaterThanOrEqual(160);
+    expect(buttonBox.height).toBeGreaterThanOrEqual(48);
+  }
 });
 
 test('the new inbox row cannot open and Play Again selects a different scenario', async ({ page }) => {

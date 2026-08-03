@@ -4,43 +4,49 @@ import { INBOX_MESSAGES } from '../../src/data/inbox';
 import { SCENARIOS } from '../../src/data/scenarios';
 import { countWords } from '../../src/game/wordCount';
 
+const EXPECTED_SCENARIO_IDS = [
+  'introduce-yourself',
+  'staff-away-day',
+  'proposal-feedback',
+  'recommend-something',
+] as const;
+
 const SAMPLE_REPLIES = {
-  'office-move':
-    'Hi Priya, I would ask the movers to begin with the storage cabinets at 08:30 while IT disconnects the desks. James can take over the goods lift at 08:45, so Ruth does not need to be in two places and can collect the access cards today. Elias should finish the six remaining archive boxes from 14:00 on Friday and move them to Bay C before it closes at 16:00. Please tell Facilities that James is the lift contact and that desk moves can begin after 09:00. This sequence uses everyone’s stated availability and avoids delaying either IT or the movers. Thanks, Office Administration',
+  'introduce-yourself':
+    'Hi Rachel, I joined the company after several years working in public libraries, where I looked after community events and helped people make sense of unfamiliar systems. I enjoy work that combines careful organisation with a little creative problem-solving, and I’m looking forward to learning how the different teams here fit together. I tend to work quietly at first, ask a lot of questions and keep clear notes, but I enjoy collaborating once I understand the shape of a project. Outside work I read, cook, take long walks and attempt to keep a small balcony garden alive. Please feel free to say hello, especially if you know what my basil is doing wrong. Thanks.',
   'staff-away-day':
-    'Hi Dan, I would choose systems mapping because cross-team handovers were the most common problem in the staff survey, so it should have the broadest practical benefit. I would keep the 08:10 coach: it arrives with 25 minutes to settle in, whereas the later minibus costs £140 more and leaves almost no margin. I would not rely on a dietary list that is six months old, especially where a nut allergy is involved. Please ask everyone to confirm or update their requirements before the venue deadline, while carrying the existing three requirements forward provisionally so nothing is lost. That seems the safer and better-value plan. Thanks.',
-  'new-employee-first-week':
-    'Hi Leah, I would use Tom as Jordan’s welcome contact on Monday because he will be present, then ask Maya to become the main product buddy from Tuesday. Tom can collect the laptop from IT at 09:15 and help Jordan get settled while Maya is away. I would move the product walkthrough to Tuesday at 11:30, after Maya’s client call, rather than waiting until Wednesday. That gives Jordan product context early without asking Maya to miss an existing commitment. Please list Tom as the laptop collector and Monday contact, with Maya taking over the buddy role and leading the rescheduled walkthrough from Tuesday. Thanks.',
-  'supplier-renewal':
-    'Hi Owen, I recommend renewing with Cedar. Elm saves £550 a year, but its five-day lead time and £100 minimum do not fit the two small urgent orders we place each month. Those orders would either be delayed or padded, which could quickly erode the saving. Cedar’s three late deliveries were all under a day, so its current service record seems acceptable, and the surcharge cap adds useful certainty. Nadia should remain contract owner, with a named deputy covering the first two weeks of December; I suggest asking Procurement to nominate someone before the renewal is signed. Please continue using cost centre 4310. Best.',
-  'recurring-meeting-reorganisation':
-    'Morning Hannah, I would use Wednesday at 14:30 as the regular slot. The finance pack would then be available, and Jo would miss only the first 30 minutes rather than the whole discussion. We could put operational updates first and move any item requiring Jo to the second half. For the first week of each month, when finance takes longer, I suggest a separate 30-minute finance follow-up on Thursday afternoon once the pack is complete. That keeps the recurring meeting predictable without forcing the team to discuss incomplete figures. Please send the Wednesday invitation from next week and cancel the remaining Friday series before 16:00. Thanks.',
-  'website-refresh':
-    'Hi Mateo, I would launch with “Practical systems for growing teams.” Seven of the eight test users need to understand the offer quickly, and clarity matters more than distinctiveness on the homepage. We can keep “Work, made workable” for campaign copy where there is more context. I would feature the approved Atlas case study on Wednesday rather than rely on permission that may not arrive; the newer council work can replace it in a later update once the quotation is cleared. Please ask Ben to review the cookie notice on Tuesday morning while Aisha is away. That gives the launch a fully approved headline, case study and legal route. Thanks.',
-  'conference-travel':
-    'Hello Amy, I would book the 07:42 outbound, the 19:00 return and the Harbourside hotel. The earlier outbound avoids missing the opening session, while the later return is cheaper and removes any risk of rushing from the final session. That combination costs £240, leaving £30 within the £270 budget. The Harbourside is less convenient and does not include breakfast, but the 25-minute walk seems manageable and the saving protects the overall limit. If breakfast is essential, the city-centre hotel with the same trains would cost £270 exactly, so that is a reasonable alternative. My preference is the £240 plan unless accessibility makes the walk unsuitable. Thanks.',
-  'internal-training-day':
-    'Hi Sofia, I would book Jo and Imran for the full day, Leon for the morning, and Ruth for the afternoon access-request workshop. Leon can return to reception at 13:30 and monitor the shared inbox there until 16:30, while Ruth’s client call would no longer conflict. I would choose the access-request session because the process launches next month and Ruth can help the others connect the training to the pilot. Jo and Imran should use the two managed laptops for the practical work, and Ruth can share one during the afternoon if needed. Please submit all four names and the request for two loan laptops by Friday. Thanks.',
-  'equipment-purchase':
-    'Hi Marcus, I would order two Dell P2725H monitors for £368. They meet the essential height-adjustment requirement, work with the existing docks and stay £52 within budget. The separate power and display cables are less tidy than one USB-C connection, but the Philips pair would cost £430 before any other expenses and require Finance approval. Unless IT can show that cable simplicity solves a specific support problem, the extra cost is hard to justify. Tuesday is the safer delivery day because Facilities can receive them and the desk is free; Thursday risks interrupting the interviews. Please place the Dell order for Tuesday delivery and retain the remaining budget for cables if needed. Thanks.',
-  'client-event-follow-up':
-    'Hi Elsie, Please record Ella Shaw as attended, merge the duplicate Noor Hassan and N. Hassan entries, and remove Martin Cole and Joel Price because they cancelled. I would ask Ravi to prepare the six individual speaker notes before Monday as planned, with a brief check on Thursday so he can start before leaving at 16:30. For the general attendee email, I recommend removing slide 14 and sending the rest of the deck on Friday. Draft pricing should not go out without Sales approval, and waiting until Tuesday would make the follow-up less timely. The approved pricing slide can be sent separately later if it adds value. Thanks.',
+    'Hi Dan, An enjoyable away day for me would have one genuinely useful group activity, a good lunch and enough unstructured time to speak to people I rarely work with. I like practical or creative activities where small groups make something together, rather than competitive games that put reluctant people on the spot. The days I remember are usually relaxed and give everyone a reason to mix beyond their usual team. They become disappointing when every minute is scheduled, the purpose is vague or the entertainment feels compulsory. I would avoid early-morning travel and public icebreakers. A simple afternoon challenge followed by a shared meal somewhere pleasant would probably be more memorable than a packed programme. Best.',
+  'proposal-feedback':
+    'Hi Nina, The smaller accessible counter and brighter waiting area sound like worthwhile improvements, and I like the idea of giving the underused corner a purpose between visitor appointments. Keeping a paper sign-in fallback is also sensible. My main concern is noise: calls, lunch conversations and people waiting for meetings could all be competing in one space, particularly beside the lifts. I would test the call booths acoustically before committing to that location and ask Reception to work from a temporary desk marked out at the proposed size. I would also keep some seating that works for people who find low sofas difficult. The communal table could work well, but I would give it clear quiet hours or etiquette rather than leaving every use to chance. Have we checked where delivery drivers will wait, whether the badge screen exposes visitor names, and whether the route remains comfortable when every seat is occupied? Thanks.',
+  'recommend-something':
+    'Hi Aisha, I would buy a good-quality countertop water dispenser that provides properly chilled still and sparkling water. A reliable model should fit within the £750 budget, including a refillable cylinder and installation. It is not a dramatic purchase, but people would use it throughout the day, it would make bringing a reusable bottle more appealing and it might reduce the number of cans and plastic bottles brought into the office. Sparkling water also feels like a small treat without creating the cleaning and maintenance burden of a coffee machine. I would place it near the kitchen sink, publish a very short cleaning rota and keep ordinary tap water available so nobody has to use it. Best.',
 } as const satisfies Readonly<Record<(typeof SCENARIOS)[number]['id'], string>>;
 
 describe('authored game content', () => {
-  it('ships ten distinct, self-contained workplace scenarios without evaluation payloads', () => {
-    expect(SCENARIOS).toHaveLength(10);
-    expect(new Set(SCENARIOS.map((scenario) => scenario.id)).size).toBe(10);
-    expect(new Set(SCENARIOS.map((scenario) => scenario.subject)).size).toBe(10);
-    expect(new Set(SCENARIOS.map((scenario) => scenario.senderName)).size).toBe(10);
+  it('ships exactly the four requested open-ended scenarios with no progression metadata', () => {
+    expect(SCENARIOS).toHaveLength(4);
+    expect(SCENARIOS.map((scenario) => scenario.id).sort()).toEqual([...EXPECTED_SCENARIO_IDS].sort());
+    expect(new Set(SCENARIOS.map((scenario) => scenario.id)).size).toBe(4);
+    expect(new Set(SCENARIOS.map((scenario) => scenario.subject)).size).toBe(4);
+    expect(new Set(SCENARIOS.map((scenario) => scenario.senderName)).size).toBe(4);
 
     for (const scenario of SCENARIOS) {
+      expect('order' in scenario, scenario.id).toBe(false);
+      expect('level' in scenario, scenario.id).toBe(false);
+      expect('requires' in scenario, scenario.id).toBe(false);
+      expect('unlocks' in scenario, scenario.id).toBe(false);
+    }
+  });
+
+  it('keeps every prompt self-contained, substantial and free of attachments or evaluation payloads', () => {
+    for (const scenario of SCENARIOS) {
       const message = scenario.body.join('\n');
-      expect(scenario.body, scenario.id).toHaveLength(5);
-      expect(scenario.senderEmail, scenario.id).toContain('@');
+      expect(scenario.body.length, scenario.id).toBeGreaterThanOrEqual(5);
+      expect(scenario.body.length, scenario.id).toBeLessThanOrEqual(7);
+      expect(scenario.senderEmail, scenario.id).toMatch(/^[a-z.]+@office\.local$/u);
       expect(message, scenario.id).toContain('?');
       expect(countWords(message), scenario.id).toBeGreaterThanOrEqual(100);
-      expect(countWords(message), scenario.id).toBeLessThanOrEqual(180);
+      expect(countWords(message), scenario.id).toBeLessThanOrEqual(320);
       expect(message, scenario.id).not.toMatch(/\battach(?:ed|ment|ments)?\b/iu);
       expect(message, scenario.id).not.toMatch(/(?:quick|single) reply covering|all three (?:points|answers|items)/iu);
       expect('matters' in scenario, scenario.id).toBe(false);
@@ -48,11 +54,31 @@ describe('authored game content', () => {
     }
   });
 
-  it('supports a natural 90–130 word sample reply using only information in each message', () => {
+  it('gives each scenario the intended basis for an authentic personal response', () => {
+    const byId = Object.fromEntries(SCENARIOS.map((scenario) => [scenario.id, scenario.body.join('\n')]));
+
+    expect(byId['introduce-yourself']).toMatch(/your own words/iu);
+    expect(byId['introduce-yourself']).toMatch(/anything personal that you would rather keep private/iu);
+
+    expect(byId['staff-away-day']).toMatch(/what would make the day feel worthwhile to you/iu);
+    expect(byId['staff-away-day']).toMatch(/honest preferences/iu);
+
+    expect(countWords(byId['proposal-feedback'] ?? '')).toBeGreaterThanOrEqual(240);
+    expect(byId['proposal-feedback']).toMatch(/What works for you/iu);
+    expect(byId['proposal-feedback']).toMatch(/what would you change/iu);
+    expect(byId['proposal-feedback']).toMatch(/what do you think we may have overlooked/iu);
+
+    expect(byId['recommend-something']).toMatch(/What single purchase would you recommend/iu);
+    expect(byId['recommend-something']).toMatch(/how you imagine people benefiting/iu);
+  });
+
+  it('supports a natural 100–160 word sample response to every prompt', () => {
+    expect(Object.keys(SAMPLE_REPLIES).sort()).toEqual([...EXPECTED_SCENARIO_IDS].sort());
+
     for (const scenario of SCENARIOS) {
       const sample = SAMPLE_REPLIES[scenario.id];
-      expect(countWords(sample), scenario.id).toBeGreaterThanOrEqual(90);
-      expect(countWords(sample), scenario.id).toBeLessThanOrEqual(130);
+      expect(countWords(sample), scenario.id).toBeGreaterThanOrEqual(100);
+      expect(countWords(sample), scenario.id).toBeLessThanOrEqual(160);
     }
   });
 

@@ -54,18 +54,36 @@ test('keeps the touch-driven email path usable at the exact phone viewport', asy
   const inbox = page.getByTestId('inbox-screen');
   await expect(inbox).toBeVisible();
   await expect(page.getByTestId('play-again')).toBeHidden();
+  await expect(page.getByTestId('play-again-prompt')).toBeHidden();
+  await expect(page.getByTestId('new-mail-notification')).toBeHidden();
   await expectNoHorizontalOverflow(page);
 
   await skipInboxDelay(page);
   const newMessage = page.getByTestId('new-message-row');
+  const notification = page.getByTestId('new-mail-notification');
+  const playAgainPrompt = page.getByTestId('play-again-prompt');
   await expect(newMessage).toBeVisible();
+  await expect(newMessage).toHaveClass(/\bnew-message-arrival\b/);
+  await expect(newMessage).toHaveCSS('background-color', 'rgb(255, 240, 166)');
   await expectInsideViewport(page, newMessage);
+  await expect(notification).toContainText('New message received');
+  await expect(notification).not.toHaveAttribute('hidden', '');
+  await expectInsideViewport(page, notification);
+  await expect(playAgainPrompt).toBeVisible();
+  await expectInsideViewport(page, playAgainPrompt);
   await touchCenter(page, newMessage);
 
   await expect(inbox).toBeVisible();
   await expect(page.getByTestId('reply-screen')).toHaveCount(0);
   const playAgain = page.getByTestId('play-again');
   await expectInsideViewport(page, playAgain);
+  expect(await page.locator('.inbox-toolbar').getByTestId('play-again').count()).toBe(0);
+  const buttonBox = await playAgain.boundingBox();
+  expect(buttonBox).not.toBeNull();
+  if (buttonBox) {
+    expect(buttonBox.width).toBeGreaterThanOrEqual(160);
+    expect(buttonBox.height).toBeGreaterThanOrEqual(48);
+  }
   await expectNoHorizontalOverflow(page);
 
   await touchCenter(page, playAgain);
