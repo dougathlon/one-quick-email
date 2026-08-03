@@ -2,6 +2,8 @@
 
 A browser office-survival game about finishing a single email. Read the request, type a reply of at least 150 words, and handle a stream of timed workplace interruptions without losing your place. After you send, the game ends in the inbox when one final unread message arrives.
 
+Play the canonical release at [dougathlon.github.io/one-quick-email](https://dougathlon.github.io/one-quick-email/).
+
 The full loop supports desktop keyboards and mouse input as well as portrait phone layouts and touch controls. The primary tested sizes are 1440 × 900, 1280 × 720, 390 × 844, and 360 × 800.
 
 ## Run locally
