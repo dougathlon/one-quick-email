@@ -1,6 +1,6 @@
 # ONE QUICK EMAIL
 
-A browser office-survival game about finishing a single email. Read the request, type a reply of at least 100 words, and handle a stream of timed workplace interruptions without losing your place. After you send, the game ends in the inbox when one final unread message arrives.
+A browser office-survival game about finishing a single email. Read the request, type a reply of at least 150 words, and handle a stream of timed workplace interruptions without losing your place. After you send, the game ends in the inbox when one final unread message arrives.
 
 The full loop supports desktop keyboards and mouse input as well as portrait phone layouts and touch controls. The primary tested sizes are 1440 × 900, 1280 × 720, 390 × 844, and 360 × 800.
 
@@ -36,7 +36,7 @@ npx playwright install chromium
 - Type directly in the reply editor with a physical or on-screen keyboard. Paste, copy, cut, drag-and-drop, undo/redo, and text selection are intentionally disabled.
 - Use the on-screen buttons to start, send, mute sound, and play again.
 - Each interruption displays its controls. Mini-games accept touch or mouse input; desktop alternatives commonly use `A`/`D`, the arrow keys, `Space`, and `Enter`.
-- The Send button unlocks at 100 words.
+- The Send button unlocks at 150 words.
 
 ## Architecture
 

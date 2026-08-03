@@ -32,7 +32,7 @@ export class AppView {
               <span class="envelope-flap"></span>
             </div>
             <h1 id="game-title"><span>ONE</span> QUICK EMAIL</h1>
-            <p class="title-copy">Send a 100-word email.</p>
+            <p class="title-copy">Send a ${DEFAULT_SEND_WORD_MINIMUM}-word email.</p>
             <button id="start-work" class="bevel-button primary-button" data-testid="start-work">Start Work</button>
           </div>
           <div class="window-status"><span>Connection: office.local</span></div>

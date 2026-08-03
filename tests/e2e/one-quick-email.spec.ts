@@ -29,7 +29,7 @@ async function startScenario(page: Page, seed: string): Promise<string> {
   await expect(page.getByTestId('title-screen')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'ONE QUICK EMAIL' })).toBeVisible();
   await expect(page.getByText('Macrohard Office', { exact: true })).toBeVisible();
-  await expect(page.getByText('Send a 100-word email.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Send a 150-word email.', { exact: true })).toBeVisible();
   await expect(page.getByText('Office Mail Setup', { exact: true })).toHaveCount(0);
   await expect(page.getByText('INTERNAL CORRESPONDENCE SYSTEM', { exact: true })).toHaveCount(0);
   await expect(page.getByText('1 task pending', { exact: true })).toHaveCount(0);
@@ -98,7 +98,7 @@ async function skipInboxDelay(page: Page): Promise<void> {
 }
 
 async function sendReadyDraft(page: Page): Promise<number> {
-  await setDraft(page, words(100));
+  await setDraft(page, words(150));
   await expect(page.getByTestId('send-email')).toBeEnabled();
   const sentAt = Date.now();
   await page.getByTestId('send-email').click();
@@ -127,7 +127,7 @@ test('loads the title screen and starts a deterministic email scenario', async (
   await expect(page.getByText('HOW TO REPLY')).toHaveCount(0);
   await expect(page.getByTestId('reply-editor')).toHaveAttribute('aria-describedby', 'word-requirement');
   await expect(page.getByTestId('word-count')).toHaveText('0 words');
-  await expect(page.getByTestId('word-requirement')).toHaveText('100 words required');
+  await expect(page.getByTestId('word-requirement')).toHaveText('150 words required');
   await expect(page.getByTestId('send-email')).toBeDisabled();
   await expect(page.locator('#compose-inbox-count')).toHaveText('(117)');
   await expect(page.getByTestId('player-mailbox')).toHaveText('Office Administration <admin@office.local>');
@@ -196,22 +196,22 @@ test('blocks dropped text and collapses forward and backward selections', async 
   expect(selections.backward).toEqual([2, 2]);
 });
 
-test('keeps Send disabled at 99 words and enables it at exactly 100', async ({ page }) => {
+test('keeps Send disabled at 149 words and enables it at exactly 150', async ({ page }) => {
   await startScenario(page, 'send-threshold');
   const send = page.getByTestId('send-email');
 
-  await setDraft(page, words(99));
-  await expect(page.getByTestId('word-count')).toHaveText('99 words');
-  await expect(page.getByTestId('word-requirement')).toHaveText('100 words required');
+  await setDraft(page, words(149));
+  await expect(page.getByTestId('word-count')).toHaveText('149 words');
+  await expect(page.getByTestId('word-requirement')).toHaveText('150 words required');
   await expect(send).toBeDisabled();
 
-  await setDraft(page, words(100));
-  await expect(page.getByTestId('word-count')).toHaveText('100 words');
+  await setDraft(page, words(150));
+  await expect(page.getByTestId('word-count')).toHaveText('150 words');
   await expect(page.getByTestId('word-requirement')).toHaveText('Ready to send');
   await expect(send).toBeEnabled();
 });
 
-test('schedules every mini-game once in each shuffled block of ten', async ({ page }) => {
+test('schedules every mini-game once in each shuffled block of nine', async ({ page }) => {
   test.setTimeout(45_000);
   await startScenario(page, 'complete-mini-game-bags');
   const expected = [
@@ -224,19 +224,18 @@ test('schedules every mini-game once in each shuffled block of ten', async ({ pa
     'quick-question',
     'phone-transfer',
     'badge-scan',
-    'attachment-hunt',
   ] satisfies MiniGameId[];
   const draws: MiniGameId[] = [];
 
-  for (let index = 0; index < 20; index += 1) {
+  for (let index = 0; index < expected.length * 2; index += 1) {
     draws.push(await forceNextRotatedInterruption(page));
     await completeMiniGame(page, 'success');
     await expect.poll(async () => (await getTestState(page)).phase).toBe('compose');
   }
 
-  expect([...draws.slice(0, 10)].sort()).toEqual([...expected].sort());
-  expect([...draws.slice(10, 20)].sort()).toEqual([...expected].sort());
-  expect(draws[10]).not.toBe(draws[9]);
+  expect([...draws.slice(0, expected.length)].sort()).toEqual([...expected].sort());
+  expect([...draws.slice(expected.length)].sort()).toEqual([...expected].sort());
+  expect(draws[expected.length]).not.toBe(draws[expected.length - 1]);
 });
 
 test('holds a typing key through briefing, then restores the exact draft and caret', async ({ page }) => {

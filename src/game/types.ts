@@ -9,8 +9,7 @@ export type MiniGameId =
   | 'expense-triage'
   | 'quick-question'
   | 'phone-transfer'
-  | 'badge-scan'
-  | 'attachment-hunt';
+  | 'badge-scan';
 
 export type MiniGameOutcome = 'success' | 'timeout';
 

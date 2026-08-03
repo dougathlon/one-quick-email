@@ -21,7 +21,7 @@ describe('word counting', () => {
   });
 
   it('enables sending at exactly the configured threshold', () => {
-    expect(DEFAULT_SEND_WORD_MINIMUM).toBe(100);
+    expect(DEFAULT_SEND_WORD_MINIMUM).toBe(150);
     const below = Array.from({ length: DEFAULT_SEND_WORD_MINIMUM - 1 }, () => 'word').join(' ');
     const exact = `${below} final`;
 

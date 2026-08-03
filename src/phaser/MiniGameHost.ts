@@ -7,7 +7,6 @@ import {
   DESIGN_WIDTH,
   MINI_GAME_PLAY_STARTED_EVENT,
 } from './BaseMiniGameScene';
-import { AttachmentHuntScene, ATTACHMENT_HUNT } from './scenes/AttachmentHuntScene';
 import { BadgeScanScene, BADGE_SCAN } from './scenes/BadgeScanScene';
 import { CalendarCollisionScene, CALENDAR_COLLISION } from './scenes/CalendarCollisionScene';
 import { ExpenseTriageScene, EXPENSE_TRIAGE } from './scenes/ExpenseTriageScene';
@@ -34,7 +33,6 @@ const DEFINITIONS: Readonly<Record<MiniGameId, MiniGameDefinition>> = {
   'quick-question': QUICK_QUESTION,
   'phone-transfer': PHONE_TRANSFER,
   'badge-scan': BADGE_SCAN,
-  'attachment-hunt': ATTACHMENT_HUNT,
 };
 
 const SCENES = [
@@ -47,7 +45,6 @@ const SCENES = [
   QuickQuestionScene,
   PhoneTransferScene,
   BadgeScanScene,
-  AttachmentHuntScene,
 ] as const;
 
 const physicallyHeldKeys = new Set<string>();

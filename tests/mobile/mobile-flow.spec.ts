@@ -34,18 +34,18 @@ test('keeps the touch-driven email path usable at the exact phone viewport', asy
   await expectNoDesktopBlocker(page);
   await expectNoHorizontalOverflow(page);
 
-  await setDraft(page, words(99));
-  await expect(page.getByTestId('word-count')).toHaveText('99 words');
-  await expect(page.getByTestId('word-requirement')).toHaveText('100 words required');
+  await setDraft(page, words(149));
+  await expect(page.getByTestId('word-count')).toHaveText('149 words');
+  await expect(page.getByTestId('word-requirement')).toHaveText('150 words required');
   await expect(send).toBeDisabled();
 
   await touchCenter(page, editor);
   await expect(editor).toBeFocused();
-  await setDraft(page, words(99));
+  await setDraft(page, words(149));
   await page.keyboard.type(' final', { delay: 8 });
 
-  await expect(editor).toHaveValue(`${words(99)} final`);
-  await expect(page.getByTestId('word-count')).toHaveText('100 words');
+  await expect(editor).toHaveValue(`${words(149)} final`);
+  await expect(page.getByTestId('word-count')).toHaveText('150 words');
   await expect(page.getByTestId('word-requirement')).toHaveText('Ready to send');
   await expect(send).toBeEnabled();
 

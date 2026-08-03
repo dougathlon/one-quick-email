@@ -198,5 +198,4 @@ const MINI_GAME_PITCHES: Readonly<Record<MiniGameId, number>> = {
   'quick-question': 435,
   'phone-transfer': 480,
   'badge-scan': 525,
-  'attachment-hunt': 570,
 };

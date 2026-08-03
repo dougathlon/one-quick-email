@@ -21,7 +21,6 @@ const MINI_GAMES: readonly MiniGameId[] = [
   'quick-question',
   'phone-transfer',
   'badge-scan',
-  'attachment-hunt',
 ];
 
 async function startMobileScenario(page: Page): Promise<void> {
@@ -115,7 +114,7 @@ async function startPlayingMiniGame(page: Page, id: MiniGameId): Promise<void> {
 test.describe('portrait mini-games', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test('all ten scenes keep touch input inside a readable portrait board', async ({ page }) => {
+  test('all nine scenes keep touch input inside a readable portrait board', async ({ page }) => {
     test.setTimeout(60_000);
     await startMobileScenario(page);
     const draft = 'Touch controls must never type into or otherwise mutate this draft.';

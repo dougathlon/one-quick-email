@@ -1,4 +1,4 @@
-export const DEFAULT_SEND_WORD_MINIMUM = 100;
+export const DEFAULT_SEND_WORD_MINIMUM = 150;
 
 // Count lexical tokens rather than whitespace chunks so punctuation and emoji do
 // not inflate the total. Apostrophes and dashes only remain part of a word when

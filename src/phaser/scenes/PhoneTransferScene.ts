@@ -1,5 +1,11 @@
 import Phaser from 'phaser';
 
+import {
+  connectorJoinsRoute,
+  isPhoneTransferPathComplete,
+  type PhoneConnectorKind,
+  type PhoneConnectorRoute,
+} from '../../game/phoneTransferPath';
 import { BaseMiniGameScene, PALETTE } from '../BaseMiniGameScene';
 import type { MiniGameDefinition } from '../types';
 
@@ -21,24 +27,24 @@ export const PHONE_TRANSFER: MiniGameDefinition = {
   },
 };
 
-type ConnectorKind = 'straight' | 'corner';
-
 interface Connector {
-  readonly kind: ConnectorKind;
-  readonly required: number;
+  readonly kind: PhoneConnectorKind;
+  readonly route: PhoneConnectorRoute;
   readonly container: Phaser.GameObjects.Container;
   readonly surface: Phaser.GameObjects.Rectangle;
   readonly pipe: Phaser.GameObjects.Graphics;
   rotation: number;
 }
 
-const CONNECTOR_LAYOUT: ReadonlyArray<readonly [number, number, ConnectorKind, number]> = [
-  [340, 355, 'straight', 0],
-  [500, 355, 'corner', 1],
-  [500, 515, 'straight', 1],
-  [500, 675, 'corner', 3],
-  [660, 675, 'straight', 0],
-  [820, 675, 'straight', 0],
+type ConnectorLayout = readonly [number, number, PhoneConnectorKind, PhoneConnectorRoute];
+
+const CONNECTOR_LAYOUT: readonly ConnectorLayout[] = [
+  [340, 355, 'straight', { entry: 'left', exit: 'right' }],
+  [500, 355, 'corner', { entry: 'left', exit: 'down' }],
+  [500, 515, 'straight', { entry: 'up', exit: 'down' }],
+  [500, 675, 'corner', { entry: 'up', exit: 'right' }],
+  [660, 675, 'straight', { entry: 'left', exit: 'right' }],
+  [820, 675, 'straight', { entry: 'left', exit: 'right' }],
 ];
 
 export class PhoneTransferScene extends BaseMiniGameScene {
@@ -52,6 +58,7 @@ export class PhoneTransferScene extends BaseMiniGameScene {
   protected buildGame(): void {
     this.connectors = [];
     this.selectedIndex = 0;
+    this.clearDebugState();
     const centerX = this.isPortrait ? 300 : 720;
     this.addPanel(centerX, this.isPortrait ? 700 : 510, this.isPortrait ? 550 : 1080, this.isPortrait ? 850 : 540, 0xe9edf5);
 
@@ -71,17 +78,17 @@ export class PhoneTransferScene extends BaseMiniGameScene {
       : this.add.rectangle(906, 675, 48, 18, PALETTE.blue);
     this.gameLayer.add(finalLink);
 
-    const connectorLayout: ReadonlyArray<readonly [number, number, ConnectorKind, number]> = this.isPortrait
+    const connectorLayout: readonly ConnectorLayout[] = this.isPortrait
       ? [
-          [175, 430, 'straight', 0],
-          [305, 430, 'corner', 1],
-          [305, 570, 'straight', 1],
-          [305, 710, 'corner', 3],
-          [435, 710, 'corner', 1],
-          [435, 850, 'straight', 1],
+          [175, 430, 'straight', { entry: 'left', exit: 'right' }],
+          [305, 430, 'corner', { entry: 'left', exit: 'down' }],
+          [305, 570, 'straight', { entry: 'up', exit: 'down' }],
+          [305, 710, 'corner', { entry: 'up', exit: 'right' }],
+          [435, 710, 'corner', { entry: 'left', exit: 'down' }],
+          [435, 850, 'straight', { entry: 'up', exit: 'down' }],
         ]
       : CONNECTOR_LAYOUT;
-    connectorLayout.forEach(([x, y, kind, required], index) => {
+    connectorLayout.forEach(([x, y, kind, route], index) => {
       const container = this.add.container(x, y);
       const tileSize = this.isPortrait ? 108 : 124;
       const pipeRadius = tileSize / 2;
@@ -103,13 +110,13 @@ export class PhoneTransferScene extends BaseMiniGameScene {
       }).setOrigin(0.5);
 
       let rotation = Phaser.Math.Between(0, 3);
-      if (index < 2 && this.orientationMatches(kind, rotation, required)) rotation = (rotation + 1) % 4;
+      if (index < 2 && connectorJoinsRoute({ kind, rotation }, route)) rotation = (rotation + 1) % 4;
       pipe.angle = rotation * 90;
       container.add([surface, pipe, number]);
       container.setSize(tileSize, tileSize).setInteractive({ useHandCursor: true });
       this.gameLayer.add(container);
 
-      const connector: Connector = { kind, required, container, surface, pipe, rotation };
+      const connector: Connector = { kind, route, container, surface, pipe, rotation };
       this.connectors.push(connector);
       this.listen(container, Phaser.Input.Events.POINTER_UP, () => {
         this.selectedIndex = index;
@@ -138,6 +145,7 @@ export class PhoneTransferScene extends BaseMiniGameScene {
       }
     });
     this.refreshSelection();
+    this.publishDebugState();
   }
 
   private rotateSelected(): void {
@@ -145,16 +153,16 @@ export class PhoneTransferScene extends BaseMiniGameScene {
     const connector = this.connectors[this.selectedIndex];
     if (!connector) return;
     connector.rotation = (connector.rotation + 1) % 4;
+    this.tweens.killTweensOf(connector.pipe);
     this.tweens.add({
       targets: connector.pipe,
       angle: connector.rotation * 90,
       duration: 100,
       ease: 'Cubic.easeOut',
+      onComplete: () => this.checkForSuccess(),
     });
     this.refreshSelection();
-    if (this.connectors.every((item) => this.orientationMatches(item.kind, item.rotation, item.required))) {
-      this.succeed();
-    }
+    this.publishDebugState();
   }
 
   private refreshSelection(): void {
@@ -163,7 +171,54 @@ export class PhoneTransferScene extends BaseMiniGameScene {
     });
   }
 
-  private orientationMatches(kind: ConnectorKind, rotation: number, required: number): boolean {
-    return kind === 'straight' ? rotation % 2 === required % 2 : rotation % 4 === required % 4;
+  private checkForSuccess(): void {
+    if (!this.isPlaying) return;
+    const logicalConnected = this.isLogicalPathComplete();
+    const visualRotations = this.connectors.map((connector) => this.settledRotation(connector.pipe.angle));
+    const visualConnected = visualRotations.every((rotation) => rotation !== null)
+      && isPhoneTransferPathComplete(
+        this.connectors.map((connector, index) => ({
+          kind: connector.kind,
+          rotation: visualRotations[index] ?? Number.NaN,
+        })),
+        this.connectors.map((connector) => connector.route),
+      );
+    this.publishDebugState(visualConnected);
+    if (!logicalConnected || !visualConnected) return;
+    if (import.meta.env.DEV) this.game.canvas.dataset.phoneTransferSuccessVisualConnected = 'true';
+    this.succeed();
+  }
+
+  private isLogicalPathComplete(): boolean {
+    return isPhoneTransferPathComplete(
+      this.connectors,
+      this.connectors.map((connector) => connector.route),
+    );
+  }
+
+  private settledRotation(angle: number): number | null {
+    const quarterTurns = Math.round(angle / 90);
+    return Math.abs(angle - quarterTurns * 90) <= 0.01
+      ? ((quarterTurns % 4) + 4) % 4
+      : null;
+  }
+
+  private clearDebugState(): void {
+    if (!import.meta.env.DEV) return;
+    delete this.game.canvas.dataset.phoneTransferRotations;
+    delete this.game.canvas.dataset.phoneTransferLogicalConnected;
+    delete this.game.canvas.dataset.phoneTransferVisualConnected;
+    delete this.game.canvas.dataset.phoneTransferSuccessVisualConnected;
+  }
+
+  private publishDebugState(visualConnected?: boolean): void {
+    if (!import.meta.env.DEV) return;
+    this.game.canvas.dataset.phoneTransferRotations = this.connectors
+      .map((connector) => connector.rotation)
+      .join(',');
+    this.game.canvas.dataset.phoneTransferLogicalConnected = String(this.isLogicalPathComplete());
+    if (visualConnected !== undefined) {
+      this.game.canvas.dataset.phoneTransferVisualConnected = String(visualConnected);
+    }
   }
 }

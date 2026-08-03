@@ -38,7 +38,6 @@ const MINI_GAMES: readonly MiniGameId[] = [
   'quick-question',
   'phone-transfer',
   'badge-scan',
-  'attachment-hunt',
 ];
 
 const MINI_GAME_LABELS: Readonly<Record<MiniGameId, string>> = {
@@ -51,7 +50,6 @@ const MINI_GAME_LABELS: Readonly<Record<MiniGameId, string>> = {
   'quick-question': 'QUICK QUESTION',
   'phone-transfer': 'PHONE TRANSFER',
   'badge-scan': 'BADGE SCAN',
-  'attachment-hunt': 'ATTACHMENT HUNT',
 };
 
 interface ApplicationState {

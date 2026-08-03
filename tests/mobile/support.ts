@@ -12,8 +12,7 @@ export type MiniGameId =
   | 'expense-triage'
   | 'quick-question'
   | 'phone-transfer'
-  | 'badge-scan'
-  | 'attachment-hunt';
+  | 'badge-scan';
 
 export interface BrowserTestState {
   phase: 'title' | 'compose' | 'minigame' | 'inbox';
@@ -49,7 +48,6 @@ export const MINI_GAMES: readonly MiniGameId[] = [
   'quick-question',
   'phone-transfer',
   'badge-scan',
-  'attachment-hunt',
 ];
 
 export const words = (count: number): string => Array.from(

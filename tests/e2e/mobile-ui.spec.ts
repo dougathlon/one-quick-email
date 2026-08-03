@@ -51,7 +51,7 @@ async function setReadyDraft(page: Page): Promise<void> {
     const setDraft = (window as TestWindow).__ONE_QUICK_EMAIL_TEST__?.setDraft;
     if (!setDraft) throw new Error('Development setDraft hook is unavailable');
     setDraft(draft);
-  }, words(100));
+  }, words(150));
 }
 
 async function skipInboxDelay(page: Page): Promise<void> {
@@ -70,7 +70,7 @@ for (const viewport of PHONE_VIEWPORTS) {
     await expect(page.getByText('Desktop required')).toHaveCount(0);
     await expect(page.getByTestId('title-screen')).toBeVisible();
     await expect(page.getByText('Macrohard Office', { exact: true })).toBeVisible();
-    await expect(page.getByText('Send a 100-word email.', { exact: true })).toBeVisible();
+    await expect(page.getByText('Send a 150-word email.', { exact: true })).toBeVisible();
     const startButton = page.getByTestId('start-work');
     await expect(startButton).toBeVisible();
     await expectWithinViewport(page, startButton);

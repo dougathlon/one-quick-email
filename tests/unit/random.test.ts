@@ -68,13 +68,12 @@ const MINI_GAME_IDS = [
   'quick-question',
   'phone-transfer',
   'badge-scan',
-  'attachment-hunt',
 ] satisfies MiniGameId[];
 
 describe('MiniGameShuffleBag', () => {
-  it('plays every mini-game exactly once in each consecutive group of ten', () => {
+  it('plays every mini-game exactly once in each consecutive group of nine', () => {
     const rotation = new MiniGameShuffleBag(MINI_GAME_IDS, new SeededRandom('three-bags'));
-    const draws = Array.from({ length: 30 }, () => rotation.next());
+    const draws = Array.from({ length: MINI_GAME_IDS.length * 3 }, () => rotation.next());
     const expected = [...MINI_GAME_IDS].sort();
 
     for (let start = 0; start < draws.length; start += MINI_GAME_IDS.length) {
