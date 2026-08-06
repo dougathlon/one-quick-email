@@ -418,7 +418,7 @@ export class MiniGameHost {
     this.active = null;
     this.launching = null;
     this.game.scene.stop(definition.sceneKey);
-    clearPhysicalInputs();
+    clearPhysicalPointers();
     this.parent.dataset.miniGameStatus = outcome;
     this.parent.setAttribute('aria-label', `${definition.title}: ${outcome}`);
     request.onComplete(outcome);
