@@ -65,6 +65,13 @@ export function expectedViewport(testInfo: TestInfo): { width: number; height: n
 
 export async function expectMobileEnvironment(page: Page, testInfo: TestInfo): Promise<void> {
   expect(page.viewportSize()).toEqual(expectedViewport(testInfo));
+  expect(testInfo.project.use.hasTouch).toBe(true);
+
+  // Playwright's Linux WebKit build injects touchscreen events but reports
+  // desktop navigator/media-query capability values. The WebKit projects
+  // prove touch support through their real touchscreen actions instead.
+  if (testInfo.project.use.browserName === 'webkit') return;
+
   const capabilities = await page.evaluate(() => ({
     maxTouchPoints: navigator.maxTouchPoints,
     coarsePointer: matchMedia('(pointer: coarse)').matches,
