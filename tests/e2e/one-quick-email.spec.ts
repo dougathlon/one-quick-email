@@ -305,7 +305,7 @@ test('quarantines a typing key without extending briefing, then restores the exa
   })).toEqual([caret, caret]);
 });
 
-test('waits for a held Quick Question key to be released before restoring editor focus', async ({ page }) => {
+test('quarantines repeated Quick Question input but bounds a missing key release', async ({ page }) => {
   await startScenario(page, 'held-mini-game-key');
   const editor = page.getByTestId('reply-editor');
   await editor.pressSequentially('typing starts before the interruption');
@@ -328,13 +328,17 @@ test('waits for a held Quick Question key to be released before restoring editor
     await page.waitForTimeout(200);
     await expect(editor).not.toBeFocused();
     await page.keyboard.down('a');
-    await page.waitForTimeout(150);
+    await page.waitForTimeout(1_000);
     await page.keyboard.down('a');
+    await page.waitForTimeout(200);
+    await expect(editor).not.toBeFocused();
+
+    await page.waitForTimeout(1_500);
+    await expect(editor).toBeFocused();
   } finally {
     await page.keyboard.up('a');
   }
 
-  await expect(editor).toBeFocused();
   await expect(editor).toHaveValue(draft);
   expect((await getTestState(page)).draft).toBe(draft);
   expect(await editor.evaluate((element) => {
