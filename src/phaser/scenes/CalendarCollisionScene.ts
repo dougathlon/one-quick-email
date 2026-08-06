@@ -72,7 +72,7 @@ export class CalendarCollisionScene extends BaseMiniGameScene {
 
     const startsOnLeft = this.targetX > centerX;
     this.meeting = this.add.container(startsOnLeft ? this.trackMinX + 15 : this.trackMaxX - 15, this.isPortrait ? 960 : 690);
-    const meetingSurface = this.add.rectangle(0, 0, this.isPortrait ? 150 : 126, this.isPortrait ? 112 : 82, PALETTE.yellow)
+    const meetingSurface = this.add.rectangle(0, 0, this.isPortrait ? 150 : 126, this.isPortrait ? 112 : 96, PALETTE.yellow)
       .setStrokeStyle(5, PALETTE.ink);
     const meetingLabel = this.add.text(0, 0, 'YOUR\nMEETING', {
       align: 'center',
@@ -82,7 +82,7 @@ export class CalendarCollisionScene extends BaseMiniGameScene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
     this.meeting.add([meetingSurface, meetingLabel]);
-    this.meeting.setSize(this.isPortrait ? 150 : 126, this.isPortrait ? 112 : 82)
+    this.meeting.setSize(this.isPortrait ? 150 : 126, this.isPortrait ? 112 : 96)
       .setInteractive({ useHandCursor: true });
     this.gameLayer.add(this.meeting);
 

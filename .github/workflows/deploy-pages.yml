@@ -34,7 +34,7 @@ jobs:
         run: npm test
 
       - name: Install browser test dependencies
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Run browser tests
         run: npm run test:browser

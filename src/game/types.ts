@@ -47,6 +47,7 @@ export interface TestHooks {
     draft: string;
     scenarioId: string | null;
     activeMiniGame: MiniGameId | null;
+    interruptionStarted: boolean;
   }>;
 }
 

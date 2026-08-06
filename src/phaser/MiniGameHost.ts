@@ -48,8 +48,9 @@ const SCENES = [
 ] as const;
 
 const physicallyHeldKeys = new Set<string>();
-let physicalKeyTrackingActive = false;
-let physicalKeyTrackingLeaseCount = 0;
+const physicallyHeldPointers = new Set<number>();
+let physicalInputTrackingActive = false;
+let physicalInputTrackingLeaseCount = 0;
 
 const trackPhysicalKeyDown = (event: KeyboardEvent): void => {
   physicallyHeldKeys.add(event.code || event.key);
@@ -63,40 +64,85 @@ const clearPhysicalKeys = (): void => {
   physicallyHeldKeys.clear();
 };
 
-function startPhysicalKeyTracking(): void {
-  if (physicalKeyTrackingActive || typeof window === 'undefined') return;
-  physicalKeyTrackingActive = true;
+const isTouchLikePointer = (event: PointerEvent): boolean => (
+  event.pointerType === 'touch' || event.pointerType === 'pen'
+);
+
+const trackPhysicalPointerDown = (event: PointerEvent): void => {
+  if (isTouchLikePointer(event)) physicallyHeldPointers.add(event.pointerId);
+};
+
+const trackPhysicalPointerUp = (event: PointerEvent): void => {
+  physicallyHeldPointers.delete(event.pointerId);
+};
+
+const clearPhysicalPointers = (): void => {
+  physicallyHeldPointers.clear();
+};
+
+const clearPhysicalPointersAfterTouch = (event: TouchEvent): void => {
+  if (event.touches.length === 0) clearPhysicalPointers();
+};
+
+const clearPhysicalInputs = (): void => {
+  clearPhysicalKeys();
+  clearPhysicalPointers();
+};
+
+const clearPhysicalInputsWhenHidden = (): void => {
+  if (document.hidden) clearPhysicalInputs();
+};
+
+function startPhysicalInputTracking(): void {
+  if (physicalInputTrackingActive || typeof window === 'undefined') return;
+  physicalInputTrackingActive = true;
   window.addEventListener('keydown', trackPhysicalKeyDown, true);
   window.addEventListener('keyup', trackPhysicalKeyUp, true);
-  window.addEventListener('blur', clearPhysicalKeys);
+  window.addEventListener('pointerdown', trackPhysicalPointerDown, true);
+  window.addEventListener('pointerup', trackPhysicalPointerUp, true);
+  window.addEventListener('pointercancel', trackPhysicalPointerUp, true);
+  window.addEventListener('lostpointercapture', trackPhysicalPointerUp, true);
+  window.addEventListener('touchend', clearPhysicalPointersAfterTouch, true);
+  window.addEventListener('touchcancel', clearPhysicalPointersAfterTouch, true);
+  window.addEventListener('blur', clearPhysicalInputs);
+  window.addEventListener('pagehide', clearPhysicalInputs);
+  document.addEventListener('visibilitychange', clearPhysicalInputsWhenHidden);
 }
 
-function retainPhysicalKeyTracking(): void {
-  physicalKeyTrackingLeaseCount += 1;
-  startPhysicalKeyTracking();
+function retainPhysicalInputTracking(): void {
+  physicalInputTrackingLeaseCount += 1;
+  startPhysicalInputTracking();
 }
 
-function releasePhysicalKeyTracking(): void {
-  physicalKeyTrackingLeaseCount = Math.max(0, physicalKeyTrackingLeaseCount - 1);
+function releasePhysicalInputTracking(): void {
+  physicalInputTrackingLeaseCount = Math.max(0, physicalInputTrackingLeaseCount - 1);
   if (
-    physicalKeyTrackingLeaseCount > 0
-    || !physicalKeyTrackingActive
+    physicalInputTrackingLeaseCount > 0
+    || !physicalInputTrackingActive
     || typeof window === 'undefined'
   ) return;
   window.removeEventListener('keydown', trackPhysicalKeyDown, true);
   window.removeEventListener('keyup', trackPhysicalKeyUp, true);
-  window.removeEventListener('blur', clearPhysicalKeys);
-  physicallyHeldKeys.clear();
-  physicalKeyTrackingActive = false;
+  window.removeEventListener('pointerdown', trackPhysicalPointerDown, true);
+  window.removeEventListener('pointerup', trackPhysicalPointerUp, true);
+  window.removeEventListener('pointercancel', trackPhysicalPointerUp, true);
+  window.removeEventListener('lostpointercapture', trackPhysicalPointerUp, true);
+  window.removeEventListener('touchend', clearPhysicalPointersAfterTouch, true);
+  window.removeEventListener('touchcancel', clearPhysicalPointersAfterTouch, true);
+  window.removeEventListener('blur', clearPhysicalInputs);
+  window.removeEventListener('pagehide', clearPhysicalInputs);
+  document.removeEventListener('visibilitychange', clearPhysicalInputsWhenHidden);
+  clearPhysicalInputs();
+  physicalInputTrackingActive = false;
 }
 
-export function retainMiniGamePhysicalKeyTracking(): () => void {
-  retainPhysicalKeyTracking();
+export function retainMiniGamePhysicalInputTracking(): () => void {
+  retainPhysicalInputTracking();
   let released = false;
   return () => {
     if (released) return;
     released = true;
-    releasePhysicalKeyTracking();
+    releasePhysicalInputTracking();
   };
 }
 
@@ -140,11 +186,12 @@ interface SavedParentAttributes {
 export class MiniGameHost {
   private readonly game: Phaser.Game;
   private readonly savedAttributes: SavedParentAttributes;
-  private readonly releasePhysicalKeyTracking: () => void;
+  private readonly releasePhysicalInputTracking: () => void;
   private readonly removeParentInputShield: () => void;
   private booted = false;
   private destroyed = false;
   private nextToken = 0;
+  private viewportRefreshFrame: number | null = null;
   private pendingRequest: StartRequest | null = null;
   private launching: LaunchingScene | null = null;
   private active: ActiveScene | null = null;
@@ -153,7 +200,7 @@ export class MiniGameHost {
     private readonly parent: HTMLElement,
     private readonly audio: MiniGameAudioCallbacks,
   ) {
-    this.releasePhysicalKeyTracking = retainMiniGamePhysicalKeyTracking();
+    this.releasePhysicalInputTracking = retainMiniGamePhysicalInputTracking();
     this.savedAttributes = {
       ariaLabel: parent.getAttribute('aria-label'),
       miniGame: parent.dataset.miniGame,
@@ -167,6 +214,8 @@ export class MiniGameHost {
     parent.setAttribute('aria-label', 'Office interruption mini-game');
     parent.dataset.miniGameStatus = 'idle';
     this.removeParentInputShield = this.installParentInputShield();
+    window.addEventListener('resize', this.handleViewportResize);
+    window.addEventListener('orientationchange', this.handleViewportResize);
 
     const initialWidth = Math.max(1, parent.clientWidth || DESIGN_WIDTH);
     const initialHeight = Math.max(1, parent.clientHeight || DESIGN_HEIGHT);
@@ -245,16 +294,62 @@ export class MiniGameHost {
     this.nextToken += 1;
     this.pendingRequest = null;
     this.cancelCurrentRun();
+    if (this.viewportRefreshFrame !== null) {
+      window.cancelAnimationFrame(this.viewportRefreshFrame);
+      this.viewportRefreshFrame = null;
+    }
+    window.removeEventListener('resize', this.handleViewportResize);
+    window.removeEventListener('orientationchange', this.handleViewportResize);
+    clearPhysicalPointers();
     this.game.destroy(true);
     this.restoreParentAttributes();
     this.removeParentInputShield();
-    this.releasePhysicalKeyTracking();
+    this.releasePhysicalInputTracking();
   }
 
   private handleBoot(game: Phaser.Game): void {
     if (this.destroyed || game !== this.game) return;
     this.booted = true;
     this.launchPending();
+  }
+
+  private readonly handleViewportResize = (): void => {
+    if (this.destroyed || this.viewportRefreshFrame !== null) return;
+    this.viewportRefreshFrame = window.requestAnimationFrame(() => {
+      this.viewportRefreshFrame = null;
+      this.restartForLayoutChange();
+    });
+  };
+
+  private restartForLayoutChange(): void {
+    const currentRequest = this.pendingRequest
+      ?? this.launching?.request
+      ?? this.active?.request;
+    if (!currentRequest || this.destroyed) return;
+
+    const portraitLayout = shouldUsePortraitMiniGameLayout({
+      width: this.parent.clientWidth,
+      height: this.parent.clientHeight,
+    });
+    const currentScene = this.launching?.scene ?? this.active?.scene;
+    if (portraitLayout === currentRequest.portraitLayout) {
+      currentScene?.updateViewportSafeArea(measureSafeAreaInsets(this.parent));
+      return;
+    }
+    if (currentScene && !currentScene.canRestartForViewportChange) return;
+
+    const definition = DEFINITIONS[currentRequest.id];
+    const replacement: StartRequest = {
+      id: currentRequest.id,
+      onComplete: currentRequest.onComplete,
+      portraitLayout,
+      token: ++this.nextToken,
+      ...(currentRequest.forcedOutcome ? { forcedOutcome: currentRequest.forcedOutcome } : {}),
+    };
+    this.cancelCurrentRun();
+    this.pendingRequest = replacement;
+    this.setParentStatus(definition, 'briefing', portraitLayout);
+    if (this.booted) this.launchPending();
   }
 
   private launchPending(): void {
@@ -268,6 +363,7 @@ export class MiniGameHost {
       throw new Error(`Mini-game scene is not registered: ${definition.sceneKey}`);
     }
     scene.primeBriefingHeldKeys(physicallyHeldKeys);
+    scene.primeBriefingHeldPointers(physicallyHeldPointers);
 
     const onPlayStarted = (): void => {
       if (this.destroyed || request.token !== this.nextToken) return;
@@ -311,6 +407,7 @@ export class MiniGameHost {
     this.active = null;
     this.launching = null;
     this.game.scene.stop(definition.sceneKey);
+    clearPhysicalPointers();
     this.parent.dataset.miniGameStatus = outcome;
     this.parent.setAttribute('aria-label', `${definition.title}: ${outcome}`);
     request.onComplete(outcome);

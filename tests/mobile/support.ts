@@ -19,6 +19,7 @@ export interface BrowserTestState {
   draft: string;
   scenarioId: string | null;
   activeMiniGame: MiniGameId | null;
+  interruptionStarted: boolean;
 }
 
 interface BrowserTestHooks {
@@ -36,6 +37,7 @@ type TestWindow = Window & {
 const PROJECT_VIEWPORTS = {
   'iphone-13': { width: 390, height: 844 },
   'compact-phone': { width: 360, height: 800 },
+  'iphone-webkit': { width: 390, height: 844 },
 } as const;
 
 export const MINI_GAMES: readonly MiniGameId[] = [

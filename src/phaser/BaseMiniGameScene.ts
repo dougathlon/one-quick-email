@@ -66,9 +66,12 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
   private briefingMinimumElapsed = false;
   private readonly briefingHeldKeys = new Set<string>();
   private readonly primedBriefingHeldKeys = new Set<string>();
+  private readonly primedBriefingHeldPointers = new Set<number>();
   private stopBriefingKeyTracking: (() => void) | null = null;
   private stopBriefingPointerTracking: (() => void) | null = null;
   private readonly briefingHeldPointers = new Set<number>();
+  private pointerInputQuarantined = false;
+  private pointerReleaseFrame: number | null = null;
   private portraitLayout = false;
   private logicalWidth = DESIGN_WIDTH;
   private logicalHeight = DESIGN_HEIGHT;
@@ -97,6 +100,12 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
     this.stopBriefingKeyTracking = null;
     this.stopBriefingPointerTracking = null;
     this.briefingHeldPointers.clear();
+    for (const pointerId of this.primedBriefingHeldPointers) {
+      this.briefingHeldPointers.add(pointerId);
+    }
+    this.primedBriefingHeldPointers.clear();
+    this.pointerInputQuarantined = false;
+    this.cancelPointerReleaseFrame();
     this.portraitLayout = data.portraitLayout;
     this.safeAreaInsets = data.safeAreaInsets;
   }
@@ -172,6 +181,20 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
     for (const key of keys) this.primedBriefingHeldKeys.add(key);
   }
 
+  primeBriefingHeldPointers(pointerIds: Iterable<number>): void {
+    this.primedBriefingHeldPointers.clear();
+    for (const pointerId of pointerIds) this.primedBriefingHeldPointers.add(pointerId);
+  }
+
+  get canRestartForViewportChange(): boolean {
+    return this.phase === 'briefing' || this.phase === 'playing';
+  }
+
+  updateViewportSafeArea(safeAreaInsets: MiniGameSafeAreaInsets): void {
+    this.safeAreaInsets = safeAreaInsets;
+    if (this.world) this.layoutWorld(this.scale.gameSize);
+  }
+
   cancel(): void {
     if (this.phase === 'complete' || this.phase === 'cancelled') return;
     this.phase = 'cancelled';
@@ -182,6 +205,8 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
     this.stopBriefingPointerTracking?.();
     this.stopBriefingPointerTracking = null;
     this.briefingHeldPointers.clear();
+    this.pointerInputQuarantined = false;
+    this.cancelPointerReleaseFrame();
   }
 
   protected abstract buildGame(): void;
@@ -212,6 +237,15 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
 
   protected get viewHeight(): number {
     return this.logicalHeight;
+  }
+
+  /** Expose deterministic scene state to development browser tests only. */
+  protected setDevCanvasData(key: string, value: string): void {
+    if (!import.meta.env.DEV) return;
+    this.game.canvas.dataset[key] = value;
+    this.cleanupCallbacks.push(() => {
+      delete this.game.canvas.dataset[key];
+    });
   }
 
   protected pointerToGame(pointer: Phaser.Input.Pointer): Phaser.Math.Vector2 {
@@ -396,15 +430,20 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
   private beginPlay(): void {
     if (this.phase !== 'briefing') return;
     if (import.meta.env.DEV) delete this.game.canvas.dataset.miniGamePointerDrag;
+    this.pointerInputQuarantined = this.briefingHeldPointers.size > 0;
     this.phase = 'playing';
     this.stopBriefingKeyTracking?.();
     this.stopBriefingKeyTracking = null;
-    this.stopBriefingPointerTracking?.();
-    this.stopBriefingPointerTracking = null;
+    if (!this.pointerInputQuarantined) {
+      this.stopBriefingPointerTracking?.();
+      this.stopBriefingPointerTracking = null;
+    }
     this.briefingCard?.destroy(true);
     this.briefingCard = null;
     this.briefingReadyText = null;
-    this.input.enabled = true;
+    this.input.resetPointers();
+    this.input.enabled = !this.pointerInputQuarantined;
+    this.reportPointerQuarantine();
     this.deadline = this.time.now + this.definition.durationMs;
     this.timerText.setText(`${(this.definition.durationMs / 1000).toFixed(1)}s`);
     this.lastCountdownSecond = Math.ceil(this.definition.durationMs / 1000);
@@ -417,7 +456,7 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
       this.phase === 'briefing'
       && this.briefingMinimumElapsed
       && this.briefingHeldKeys.size === 0
-      && this.briefingHeldPointers.size === 0
+      && !document.hidden
     ) {
       this.beginPlay();
     }
@@ -432,6 +471,8 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
     this.stopBriefingKeyTracking = null;
     this.stopBriefingPointerTracking?.();
     this.stopBriefingPointerTracking = null;
+    this.pointerInputQuarantined = false;
+    this.cancelPointerReleaseFrame();
     this.tweens.killAll();
     this.safeAudio((audio) => (outcome === 'success' ? audio.success() : audio.timeout()));
 
@@ -740,36 +781,95 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
   private startBriefingPointerTracking(): void {
     const isGamePointer = (event: PointerEvent): boolean => event.composedPath().includes(this.game.canvas);
     const handlePointerDown = (event: PointerEvent): void => {
-      if (this.phase !== 'briefing' || !isGamePointer(event)) return;
+      const trackingQuarantine = this.phase === 'playing' && this.pointerInputQuarantined;
+      if ((this.phase !== 'briefing' && !trackingQuarantine) || !isGamePointer(event)) return;
       event.preventDefault();
       this.briefingHeldPointers.add(event.pointerId);
       this.updateBriefingReadyCue();
     };
     const releasePointer = (event: PointerEvent): void => {
-      if (this.phase !== 'briefing' || !this.briefingHeldPointers.delete(event.pointerId)) return;
+      const trackingQuarantine = this.phase === 'playing' && this.pointerInputQuarantined;
+      if ((this.phase !== 'briefing' && !trackingQuarantine) || !this.briefingHeldPointers.delete(event.pointerId)) return;
       event.preventDefault();
       this.updateBriefingReadyCue();
-      this.tryBeginPlay();
+      this.continueAfterPointerRelease();
     };
-    const handleBlur = (): void => {
-      if (this.phase !== 'briefing') return;
+    const releaseAllPointers = (): void => {
+      const trackingQuarantine = this.phase === 'playing' && this.pointerInputQuarantined;
+      if (this.phase !== 'briefing' && !trackingQuarantine) return;
       this.briefingHeldPointers.clear();
       this.updateBriefingReadyCue();
-      this.tryBeginPlay();
+      this.continueAfterPointerRelease();
+    };
+    const handleTouchEnd = (event: TouchEvent): void => {
+      if (event.touches.length === 0) releaseAllPointers();
+    };
+    const handleVisibilityChange = (): void => {
+      if (document.hidden) releaseAllPointers();
+      else this.continueAfterPointerRelease();
     };
 
     window.addEventListener('pointerdown', handlePointerDown, true);
     window.addEventListener('pointerup', releasePointer, true);
     window.addEventListener('pointercancel', releasePointer, true);
-    window.addEventListener('blur', handleBlur);
+    window.addEventListener('lostpointercapture', releasePointer, true);
+    window.addEventListener('touchend', handleTouchEnd, true);
+    window.addEventListener('touchcancel', handleTouchEnd, true);
+    window.addEventListener('blur', releaseAllPointers);
+    window.addEventListener('pagehide', releaseAllPointers);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     const stop = (): void => {
       window.removeEventListener('pointerdown', handlePointerDown, true);
       window.removeEventListener('pointerup', releasePointer, true);
       window.removeEventListener('pointercancel', releasePointer, true);
-      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('lostpointercapture', releasePointer, true);
+      window.removeEventListener('touchend', handleTouchEnd, true);
+      window.removeEventListener('touchcancel', handleTouchEnd, true);
+      window.removeEventListener('blur', releaseAllPointers);
+      window.removeEventListener('pagehide', releaseAllPointers);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
     this.stopBriefingPointerTracking = stop;
     this.cleanupCallbacks.push(stop);
+  }
+
+  private continueAfterPointerRelease(): void {
+    if (this.phase === 'briefing') {
+      this.tryBeginPlay();
+      return;
+    }
+    if (
+      this.phase !== 'playing'
+      || !this.pointerInputQuarantined
+      || this.briefingHeldPointers.size > 0
+      || this.pointerReleaseFrame !== null
+    ) return;
+
+    this.pointerReleaseFrame = window.requestAnimationFrame(() => {
+      this.pointerReleaseFrame = null;
+      if (
+        this.phase !== 'playing'
+        || !this.pointerInputQuarantined
+        || this.briefingHeldPointers.size > 0
+      ) return;
+      this.pointerInputQuarantined = false;
+      this.input.resetPointers();
+      this.input.enabled = true;
+      this.reportPointerQuarantine();
+      this.stopBriefingPointerTracking?.();
+      this.stopBriefingPointerTracking = null;
+    });
+  }
+
+  private cancelPointerReleaseFrame(): void {
+    if (this.pointerReleaseFrame === null) return;
+    window.cancelAnimationFrame(this.pointerReleaseFrame);
+    this.pointerReleaseFrame = null;
+  }
+
+  private reportPointerQuarantine(): void {
+    if (!import.meta.env.DEV) return;
+    this.game.canvas.dataset.miniGameInputQuarantined = String(this.pointerInputQuarantined);
   }
 
   private updateBriefingReadyCue(): void {
@@ -831,6 +931,9 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
     this.stopBriefingPointerTracking = null;
     this.briefingHeldKeys.clear();
     this.briefingHeldPointers.clear();
+    this.pointerInputQuarantined = false;
+    this.cancelPointerReleaseFrame();
+    if (import.meta.env.DEV) delete this.game.canvas.dataset.miniGameInputQuarantined;
     for (const cleanup of this.cleanupCallbacks.splice(0)) cleanup();
     this.tweens.killAll();
     this.time.removeAllEvents();

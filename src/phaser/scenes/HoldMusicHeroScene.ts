@@ -47,6 +47,7 @@ export class HoldMusicHeroScene extends BaseMiniGameScene {
     this.waveTime = 0;
     this.sequence = Array.from({ length: 6 }, () => DIRECTIONS[Phaser.Math.Between(0, DIRECTIONS.length - 1)] ?? 'ArrowLeft');
     this.sequenceTiles = [];
+    this.setDevCanvasData('holdMusicSequence', this.sequence.join(','));
 
     const centerX = this.isPortrait ? 300 : 720;
     this.addPanel(centerX, this.isPortrait ? 700 : 485, this.isPortrait ? 540 : 1120, this.isPortrait ? 850 : 420, PALETTE.white);
@@ -89,8 +90,8 @@ export class HoldMusicHeroScene extends BaseMiniGameScene {
       this.makeButton(
         x,
         y,
-        this.isPortrait ? 180 : 102,
-        this.isPortrait ? 130 : 76,
+        this.isPortrait ? 180 : 118,
+        this.isPortrait ? 130 : 96,
         GLYPH[direction],
         PALETTE.cyan,
         () => this.enter(direction),

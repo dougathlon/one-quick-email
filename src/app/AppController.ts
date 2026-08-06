@@ -21,7 +21,7 @@ import { canSend, countWords } from '../game/wordCount';
 import {
   hasPhysicallyHeldMiniGameKeys,
   MiniGameHost,
-  retainMiniGamePhysicalKeyTracking,
+  retainMiniGamePhysicalInputTracking,
 } from '../phaser/MiniGameHost';
 import { AppView } from '../ui/AppView';
 
@@ -66,7 +66,7 @@ interface ApplicationState {
 
 export class AppController {
   private readonly audio = new AudioManager();
-  private readonly releaseMiniGamePhysicalKeyTracking = retainMiniGamePhysicalKeyTracking();
+  private readonly releaseMiniGamePhysicalInputTracking = retainMiniGamePhysicalInputTracking();
   private readonly random: RandomSource;
   private readonly miniGameRotation: MiniGameShuffleBag<MiniGameId>;
   private readonly view: AppView;
@@ -78,7 +78,6 @@ export class AppController {
   private inboxTimer: ReturnType<typeof setTimeout> | null = null;
   private inboxRemaining = REPLY_DELAY_MS;
   private inboxLastTick = 0;
-  private pendingPrintableInput = false;
   private readonly heldMiniGameKeys = new Set<string>();
   private miniGameInputShieldInstalled = false;
   private pendingEditorRestore = false;
@@ -112,7 +111,7 @@ export class AppController {
     this.view.showMiniGame(false);
     this.miniGameHost?.destroy();
     this.miniGameHost = null;
-    this.releaseMiniGamePhysicalKeyTracking();
+    this.releaseMiniGamePhysicalInputTracking();
     this.audio.destroy();
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     if (import.meta.env.DEV) delete window.__ONE_QUICK_EMAIL_TEST__;
@@ -157,7 +156,6 @@ export class AppController {
       this.audio.isMuted,
     );
     this.removeEditorGuards = attachEditorGuards(this.editor);
-    this.editor.addEventListener('beforeinput', this.handleEditorBeforeInput);
     this.editor.addEventListener('input', this.handleEditorInput);
     this.editor.addEventListener('keyup', this.captureEditorPosition);
     this.editor.addEventListener('pointerup', this.captureEditorPosition);
@@ -168,7 +166,6 @@ export class AppController {
 
   private detachEditor(): void {
     if (this.editor) {
-      this.editor.removeEventListener('beforeinput', this.handleEditorBeforeInput);
       this.editor.removeEventListener('input', this.handleEditorInput);
       this.editor.removeEventListener('keyup', this.captureEditorPosition);
       this.editor.removeEventListener('pointerup', this.captureEditorPosition);
@@ -179,24 +176,22 @@ export class AppController {
     this.editor = null;
   }
 
-  private readonly handleEditorBeforeInput = (event: InputEvent): void => {
-    this.pendingPrintableInput = event.inputType === 'insertText'
-      && typeof event.data === 'string'
-      && /\S| /u.test(event.data);
-  };
-
   private readonly handleEditorInput = (): void => {
     if (!this.editor) return;
+    const previousDraft = this.state.draft;
     this.state.draft = this.editor.value;
     this.state.wordCount = countWords(this.state.draft);
     this.captureEditorPosition();
     this.view.updateComposeStatus(this.state.wordCount);
     this.audio.typing();
-    if (this.pendingPrintableInput && !this.state.interruptionStarted) {
+    if (
+      !this.state.interruptionStarted
+      && this.state.draft !== previousDraft
+      && /\S| /u.test(this.state.draft)
+    ) {
       this.state.interruptionStarted = true;
       this.scheduler.start();
     }
-    this.pendingPrintableInput = false;
   };
 
   private readonly captureEditorPosition = (): void => {
@@ -461,6 +456,7 @@ export class AppController {
         draft: this.state.draft,
         scenarioId: this.state.scenario?.id ?? null,
         activeMiniGame: this.state.activeMiniGame,
+        interruptionStarted: this.state.interruptionStarted,
       }),
     };
   }

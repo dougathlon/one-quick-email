@@ -677,6 +677,72 @@ button { color: inherit; }
   }
 }
 
+@media (max-width: 959px) and (max-height: 500px) and (orientation: landscape) {
+  .title-screen,
+  .office-desktop {
+    padding:
+      max(2px, env(safe-area-inset-top))
+      max(4px, env(safe-area-inset-right))
+      max(2px, env(safe-area-inset-bottom))
+      max(4px, env(safe-area-inset-left));
+  }
+
+  .window-titlebar { min-height: 25px; }
+  .menu-bar { display: none; }
+
+  .toolbar {
+    min-height: 38px;
+    padding: 2px 5px;
+  }
+
+  .tool-button {
+    width: 32px;
+    height: 32px;
+  }
+
+  .send-button { min-height: 34px; }
+
+  .compose-pane {
+    grid-template-rows: auto minmax(58px, .55fr) auto minmax(82px, 1fr) auto;
+    overflow: hidden;
+  }
+
+  .incoming-message {
+    min-height: 58px;
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+
+  .reply-divider { padding: 3px 4px 2px; }
+
+  #reply-editor {
+    min-height: 82px;
+    padding: 6px 8px;
+    font-size: 14px;
+  }
+
+  .compose-status {
+    min-height: 26px;
+    padding-top: 2px;
+  }
+
+  .window-status {
+    min-height: 24px;
+    padding-right: 100px;
+  }
+
+  .mute-button {
+    right: max(7px, env(safe-area-inset-right));
+    bottom: max(7px, env(safe-area-inset-bottom));
+    min-width: 86px;
+    min-height: 30px;
+    padding: 4px 7px;
+    font-size: 11px;
+  }
+
+  .message-row { min-height: 44px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .message-row.new-message-arrival,
   .new-mail-notification,
