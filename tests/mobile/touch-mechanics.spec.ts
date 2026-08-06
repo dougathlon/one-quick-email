@@ -29,6 +29,27 @@ async function tapLogical(page: Page, point: readonly [number, number]): Promise
   await page.touchscreen.tap(screenPoint.x, screenPoint.y);
 }
 
+async function tapLogicalWhilePlaying(
+  page: Page,
+  point: readonly [number, number],
+): Promise<boolean> {
+  const layer = page.locator('#phaser-layer');
+  if (await layer.getAttribute('data-mini-game-status') !== 'playing') return false;
+
+  const canvas = layer.locator('canvas');
+  const box = await canvas.boundingBox();
+  if (!box) {
+    if (await layer.getAttribute('data-mini-game-status') !== 'playing') return false;
+    throw new Error('Active mini-game canvas has no bounds');
+  }
+  const scale = Math.min(box.width / 600, box.height / 1_200);
+  await page.touchscreen.tap(
+    box.x + (box.width - 600 * scale) / 2 + point[0] * scale,
+    box.y + (box.height - 1_200 * scale) / 2 + point[1] * scale,
+  );
+  return true;
+}
+
 async function startMiniGame(page: Page, id: Parameters<typeof forceInterruption>[1]): Promise<void> {
   await forceInterruption(page, id);
   await expect(page.locator('#phaser-layer')).toHaveAttribute(
@@ -67,16 +88,14 @@ test('touch controls can naturally complete the four tap-driven mini-games', asy
 
   await startMiniGame(page, 'reply-all-intercept');
   for (let attempt = 0; attempt < 55; attempt += 1) {
-    if (await page.locator('#phaser-layer').getAttribute('data-mini-game-status') !== 'playing') break;
-    await tapLogical(page, [300, 700]);
+    if (!await tapLogicalWhilePlaying(page, [300, 700])) break;
     await page.waitForTimeout(70);
   }
   await expectNaturalSuccess(page);
 
   await startMiniGame(page, 'stamp-of-approval');
   for (let attempt = 0; attempt < 35; attempt += 1) {
-    if (await page.locator('#phaser-layer').getAttribute('data-mini-game-status') !== 'playing') break;
-    await tapLogical(page, [300, 700]);
+    if (!await tapLogicalWhilePlaying(page, [300, 700])) break;
     await page.waitForTimeout(50);
   }
   await expectNaturalSuccess(page);
