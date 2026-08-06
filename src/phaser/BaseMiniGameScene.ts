@@ -70,6 +70,8 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
   private stopBriefingKeyTracking: (() => void) | null = null;
   private stopBriefingPointerTracking: (() => void) | null = null;
   private readonly briefingHeldPointers = new Set<number>();
+  private keyboardInputQuarantined = false;
+  private keyboardReleaseFrame: number | null = null;
   private pointerInputQuarantined = false;
   private pointerReleaseFrame: number | null = null;
   private portraitLayout = false;
@@ -104,6 +106,8 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
       this.briefingHeldPointers.add(pointerId);
     }
     this.primedBriefingHeldPointers.clear();
+    this.keyboardInputQuarantined = false;
+    this.cancelKeyboardReleaseFrame();
     this.pointerInputQuarantined = false;
     this.cancelPointerReleaseFrame();
     this.portraitLayout = data.portraitLayout;
@@ -205,6 +209,8 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
     this.stopBriefingPointerTracking?.();
     this.stopBriefingPointerTracking = null;
     this.briefingHeldPointers.clear();
+    this.keyboardInputQuarantined = false;
+    this.cancelKeyboardReleaseFrame();
     this.pointerInputQuarantined = false;
     this.cancelPointerReleaseFrame();
   }
@@ -430,10 +436,13 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
   private beginPlay(): void {
     if (this.phase !== 'briefing') return;
     if (import.meta.env.DEV) delete this.game.canvas.dataset.miniGamePointerDrag;
+    this.keyboardInputQuarantined = this.briefingHeldKeys.size > 0;
     this.pointerInputQuarantined = this.briefingHeldPointers.size > 0;
     this.phase = 'playing';
-    this.stopBriefingKeyTracking?.();
-    this.stopBriefingKeyTracking = null;
+    if (!this.keyboardInputQuarantined) {
+      this.stopBriefingKeyTracking?.();
+      this.stopBriefingKeyTracking = null;
+    }
     if (!this.pointerInputQuarantined) {
       this.stopBriefingPointerTracking?.();
       this.stopBriefingPointerTracking = null;
@@ -443,6 +452,11 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
     this.briefingReadyText = null;
     this.input.resetPointers();
     this.input.enabled = !this.pointerInputQuarantined;
+    if (this.input.keyboard) {
+      this.input.keyboard.resetKeys();
+      this.input.keyboard.enabled = !this.keyboardInputQuarantined;
+    }
+    this.reportKeyboardQuarantine();
     this.reportPointerQuarantine();
     this.deadline = this.time.now + this.definition.durationMs;
     this.timerText.setText(`${(this.definition.durationMs / 1000).toFixed(1)}s`);
@@ -455,7 +469,6 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
     if (
       this.phase === 'briefing'
       && this.briefingMinimumElapsed
-      && this.briefingHeldKeys.size === 0
       && !document.hidden
     ) {
       this.beginPlay();
@@ -471,6 +484,12 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
     this.stopBriefingKeyTracking = null;
     this.stopBriefingPointerTracking?.();
     this.stopBriefingPointerTracking = null;
+    this.keyboardInputQuarantined = false;
+    this.cancelKeyboardReleaseFrame();
+    if (this.input.keyboard) {
+      this.input.keyboard.resetKeys();
+      this.input.keyboard.enabled = true;
+    }
     this.pointerInputQuarantined = false;
     this.cancelPointerReleaseFrame();
     this.tweens.killAll();
@@ -694,7 +713,7 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
     }).setOrigin(0.5);
     const lockPanel = this.add.rectangle(centerX, portrait ? 745 : 625, portrait ? 500 : 620, portrait ? 98 : 76, theme.accent)
       .setStrokeStyle(5, theme.surface);
-    const lockText = this.add.text(centerX, portrait ? 745 : 625, portrait ? 'INPUT LOCKED — LIFT FINGERS' : 'INPUT LOCKED — RELEASE KEYS', {
+    const lockText = this.add.text(centerX, portrait ? 745 : 625, 'INPUT PAUSED — GET READY', {
       color: this.toCssColor(theme.background),
       fontFamily: theme.fontFamily,
       fontSize: portrait ? '27px' : '29px',
@@ -704,7 +723,7 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
     this.briefingReadyText = this.add.text(
       centerX,
       portrait ? 845 : 695,
-      portrait ? 'GET READY · PLAY STARTS WHEN INPUT IS CLEAR' : 'GET READY · PLAY STARTS WHEN KEYS ARE CLEAR',
+      'GET READY · PLAY STARTS AUTOMATICALLY',
       {
         color: this.toCssColor(theme.surface),
         fontFamily: theme.fontFamily,
@@ -747,35 +766,87 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
 
   private startBriefingKeyTracking(): void {
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (this.phase !== 'briefing') return;
+      const trackingQuarantine = this.phase === 'playing' && this.keyboardInputQuarantined;
+      if (this.phase !== 'briefing' && !trackingQuarantine) return;
       event.preventDefault();
       this.briefingHeldKeys.add(event.code || event.key);
       this.updateBriefingReadyCue();
     };
     const handleKeyUp = (event: KeyboardEvent): void => {
-      if (this.phase !== 'briefing') return;
+      const trackingQuarantine = this.phase === 'playing' && this.keyboardInputQuarantined;
+      if (this.phase !== 'briefing' && !trackingQuarantine) return;
       event.preventDefault();
       this.briefingHeldKeys.delete(event.code || event.key);
       this.updateBriefingReadyCue();
-      this.tryBeginPlay();
+      this.continueAfterKeyboardRelease();
     };
-    const handleBlur = (): void => {
-      if (this.phase !== 'briefing') return;
+    const releaseAllKeys = (): void => {
+      const trackingQuarantine = this.phase === 'playing' && this.keyboardInputQuarantined;
+      if (this.phase !== 'briefing' && !trackingQuarantine) return;
       this.briefingHeldKeys.clear();
       this.updateBriefingReadyCue();
-      this.tryBeginPlay();
+      this.continueAfterKeyboardRelease();
+    };
+    const handleVisibilityChange = (): void => {
+      if (document.hidden) releaseAllKeys();
+      else this.continueAfterKeyboardRelease();
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
     window.addEventListener('keyup', handleKeyUp, true);
-    window.addEventListener('blur', handleBlur);
+    window.addEventListener('blur', releaseAllKeys);
+    window.addEventListener('pagehide', releaseAllKeys);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     const stop = (): void => {
       window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('keyup', handleKeyUp, true);
-      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('blur', releaseAllKeys);
+      window.removeEventListener('pagehide', releaseAllKeys);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
     this.stopBriefingKeyTracking = stop;
     this.cleanupCallbacks.push(stop);
+  }
+
+  private continueAfterKeyboardRelease(): void {
+    if (this.phase === 'briefing') {
+      this.tryBeginPlay();
+      return;
+    }
+    if (
+      this.phase !== 'playing'
+      || !this.keyboardInputQuarantined
+      || this.briefingHeldKeys.size > 0
+      || this.keyboardReleaseFrame !== null
+    ) return;
+
+    this.keyboardReleaseFrame = window.requestAnimationFrame(() => {
+      this.keyboardReleaseFrame = null;
+      if (
+        this.phase !== 'playing'
+        || !this.keyboardInputQuarantined
+        || this.briefingHeldKeys.size > 0
+      ) return;
+      this.keyboardInputQuarantined = false;
+      if (this.input.keyboard) {
+        this.input.keyboard.resetKeys();
+        this.input.keyboard.enabled = true;
+      }
+      this.reportKeyboardQuarantine();
+      this.stopBriefingKeyTracking?.();
+      this.stopBriefingKeyTracking = null;
+    });
+  }
+
+  private cancelKeyboardReleaseFrame(): void {
+    if (this.keyboardReleaseFrame === null) return;
+    window.cancelAnimationFrame(this.keyboardReleaseFrame);
+    this.keyboardReleaseFrame = null;
+  }
+
+  private reportKeyboardQuarantine(): void {
+    if (!import.meta.env.DEV) return;
+    this.game.canvas.dataset.miniGameKeyboardInputQuarantined = String(this.keyboardInputQuarantined);
   }
 
   private startBriefingPointerTracking(): void {
@@ -876,30 +947,16 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
     if (!this.briefingReadyText) return;
     const heldPointerCount = this.briefingHeldPointers.size;
     if (heldPointerCount > 0) {
-      this.briefingReadyText.setText(
-        this.briefingMinimumElapsed
-          ? `LIFT ${heldPointerCount} HELD ${heldPointerCount === 1 ? 'FINGER' : 'FINGERS'} TO START`
-          : `INPUT LOCKED · ${heldPointerCount} TOUCH ${heldPointerCount === 1 ? 'POINT' : 'POINTS'}`,
-      );
+      this.briefingReadyText.setText(`HELD INPUT IGNORED · ${heldPointerCount} TOUCH ${heldPointerCount === 1 ? 'POINT' : 'POINTS'}`);
       return;
     }
     const heldKeyCount = this.briefingHeldKeys.size;
     if (heldKeyCount > 0) {
       const noun = heldKeyCount === 1 ? 'KEY' : 'KEYS';
-      this.briefingReadyText.setText(
-        this.briefingMinimumElapsed
-          ? `RELEASE ${heldKeyCount} HELD ${noun} TO START`
-          : `INPUT LOCKED · ${heldKeyCount} HELD ${noun}`,
-      );
+      this.briefingReadyText.setText(`HELD INPUT IGNORED · ${heldKeyCount} ${noun}`);
       return;
     }
-    this.briefingReadyText.setText(
-      this.briefingMinimumElapsed
-        ? 'READY'
-        : this.isPortrait
-          ? 'GET READY · PLAY STARTS WHEN INPUT IS CLEAR'
-          : 'GET READY · PLAY STARTS WHEN KEYS ARE CLEAR',
-    );
+    this.briefingReadyText.setText('GET READY · PLAY STARTS AUTOMATICALLY');
   }
 
   private layoutWorld(gameSize: Phaser.Structs.Size): void {
@@ -931,9 +988,16 @@ export abstract class BaseMiniGameScene extends Phaser.Scene {
     this.stopBriefingPointerTracking = null;
     this.briefingHeldKeys.clear();
     this.briefingHeldPointers.clear();
+    this.keyboardInputQuarantined = false;
+    this.cancelKeyboardReleaseFrame();
+    if (this.input.keyboard) {
+      this.input.keyboard.resetKeys();
+      this.input.keyboard.enabled = true;
+    }
     this.pointerInputQuarantined = false;
     this.cancelPointerReleaseFrame();
     if (import.meta.env.DEV) delete this.game.canvas.dataset.miniGameInputQuarantined;
+    if (import.meta.env.DEV) delete this.game.canvas.dataset.miniGameKeyboardInputQuarantined;
     for (const cleanup of this.cleanupCallbacks.splice(0)) cleanup();
     this.tweens.killAll();
     this.time.removeAllEvents();

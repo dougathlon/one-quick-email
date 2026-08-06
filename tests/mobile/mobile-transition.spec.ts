@@ -54,6 +54,26 @@ async function dispatchTouchCancelFallback(page: Page, remainingTouches: number)
   }, remainingTouches);
 }
 
+async function dispatchKeyboardEvent(
+  page: Page,
+  type: 'keydown' | 'keyup',
+  key = 'a',
+  code = 'KeyA',
+): Promise<void> {
+  await page.evaluate(({ eventType, eventKey, eventCode }) => {
+    const target = eventType === 'keydown'
+      ? document.querySelector('[data-testid="reply-editor"]')
+      : window;
+    target?.dispatchEvent(new KeyboardEvent(eventType, {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      key: eventKey,
+      code: eventCode,
+    }));
+  }, { eventType: type, eventKey: key, eventCode: code });
+}
+
 async function expectComposeRestored(page: Page): Promise<void> {
   await expect.poll(async () => (await getTestState(page)).phase, { timeout: 10_000 }).toBe('compose');
   const editor = page.getByTestId('reply-editor');
@@ -102,6 +122,43 @@ test('an orphaned touch cannot outlive the mini-game timeout or poison the next 
   await forceInterruption(page, 'phone-transfer');
   await expect(layer).toHaveAttribute('data-mini-game-status', 'playing', { timeout: 4_000 });
   await expect(canvas).toHaveAttribute('data-mini-game-input-quarantined', 'false');
+  await completeMiniGame(page);
+  await expectComposeRestored(page);
+});
+
+test('an orphaned mobile key cannot strand the briefing or editor return', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'iphone-webkit', 'One WebKit regression sample is sufficient.');
+  test.setTimeout(20_000);
+  await startCompose(page, 'mobile-orphaned-key');
+  const layer = page.locator('#phaser-layer');
+  const canvas = layer.locator('canvas');
+
+  await dispatchKeyboardEvent(page, 'keydown');
+  await forceInterruption(page, 'badge-scan');
+
+  await expect(layer).toHaveAttribute('data-mini-game-status', 'briefing');
+  await dispatchKeyboardEvent(page, 'keydown', 'b', 'KeyB');
+  await expect(layer).toHaveAttribute('data-mini-game-status', 'playing', { timeout: 4_000 });
+  await expect(canvas).toHaveAttribute('data-mini-game-keyboard-input-quarantined', 'true');
+  await expect(canvas).toHaveAttribute('data-mini-game-input-quarantined', 'false');
+
+  await expectComposeRestored(page);
+});
+
+test('releasing a carried key enables mini-game keyboard input without leaking it', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'iphone-webkit', 'One WebKit regression sample is sufficient.');
+  await startCompose(page, 'mobile-carried-key-release');
+  const layer = page.locator('#phaser-layer');
+  const canvas = layer.locator('canvas');
+
+  await dispatchKeyboardEvent(page, 'keydown');
+  await forceInterruption(page, 'paper-jam');
+  await expect(layer).toHaveAttribute('data-mini-game-status', 'playing', { timeout: 4_000 });
+  await expect(canvas).toHaveAttribute('data-mini-game-keyboard-input-quarantined', 'true');
+
+  await dispatchKeyboardEvent(page, 'keyup');
+  await expect(canvas).toHaveAttribute('data-mini-game-keyboard-input-quarantined', 'false');
+
   await completeMiniGame(page);
   await expectComposeRestored(page);
 });

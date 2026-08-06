@@ -76,13 +76,18 @@ struct GameWebView: UIViewRepresentable {
           const history = [];
           let lastTransition = '';
           let pointerArmed = false;
+          let sawKeyboardQuarantine = false;
 
           const report = () => {
             const hook = window.__ONE_QUICK_EMAIL_TEST__;
             if (!hook) return;
             const state = hook.getState();
             const layer = document.querySelector('#phaser-layer');
+            const canvas = layer?.querySelector('canvas');
             const status = layer?.dataset.miniGameStatus ?? 'none';
+            if (canvas?.dataset.miniGameKeyboardInputQuarantined === 'true') {
+              sawKeyboardQuarantine = true;
+            }
             const transition = `${state.phase}:${status}`;
             if (transition !== lastTransition) {
               history.push(transition);
@@ -93,6 +98,7 @@ struct GameWebView: UIViewRepresentable {
               status,
               draft: state.draft,
               history,
+              sawKeyboardQuarantine,
             }));
           };
 
@@ -123,6 +129,12 @@ struct GameWebView: UIViewRepresentable {
           window.addEventListener('pointerdown', () => {
             if (!pointerArmed) return;
             pointerArmed = false;
+            window.dispatchEvent(new KeyboardEvent('keydown', {
+              bubbles: true,
+              cancelable: true,
+              code: 'KeyA',
+              key: 'a',
+            }));
             window.__ONE_QUICK_EMAIL_TEST__?.forceInterruption('stamp-of-approval');
             report();
           }, { capture: true });

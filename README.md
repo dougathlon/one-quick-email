@@ -35,7 +35,7 @@ npx playwright install chromium webkit
 
 ### Xcode mobile regression
 
-The Xcode harness in `tests/xcode/OneQuickEmailXcodeQA/` runs two iPhone Simulator checks: a Mobile Safari compose-screen smoke test and a WebKit press-and-hold regression for the email-to-mini-game transition.
+The Xcode harness in `tests/xcode/OneQuickEmailXcodeQA/` runs two iPhone Simulator checks: a Mobile Safari compose-screen smoke test and a WebKit regression that combines a held touch with a missing keyboard-release event during the email-to-mini-game transition.
 
 Start the development server on the harness's fixed local port:
 

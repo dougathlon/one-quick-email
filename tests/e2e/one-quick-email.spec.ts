@@ -238,7 +238,7 @@ test('schedules every mini-game once in each shuffled block of nine', async ({ p
   expect(draws[expected.length]).not.toBe(draws[expected.length - 1]);
 });
 
-test('holds a typing key through briefing, then restores the exact draft and caret', async ({ page }) => {
+test('quarantines a typing key without extending briefing, then restores the exact draft and caret', async ({ page }) => {
   await startScenario(page, 'forced-interruption');
   const editor = page.getByTestId('reply-editor');
   await editor.pressSequentially('typing starts the interruption clock');
@@ -271,14 +271,22 @@ test('holds a typing key through briefing, then restores the exact draft and car
     await page.keyboard.press('d');
     await page.keyboard.press('Backspace');
     await page.waitForTimeout(2_050);
-    await expect(page.locator('#phaser-layer')).toHaveAttribute('data-mini-game-status', 'briefing');
+    await expect(page.locator('#phaser-layer')).toHaveAttribute('data-mini-game-status', 'playing');
+    await expect(page.locator('#phaser-layer canvas')).toHaveAttribute(
+      'data-mini-game-keyboard-input-quarantined',
+      'true',
+    );
     await expect(editor).toHaveValue(draft);
     expect((await getTestState(page)).draft).toBe(draft);
   } finally {
     await page.keyboard.up('a');
   }
 
-  await expect(page.locator('#phaser-layer')).toHaveAttribute('data-mini-game-status', 'playing', { timeout: 1_500 });
+  await expect(page.locator('#phaser-layer canvas')).toHaveAttribute(
+    'data-mini-game-keyboard-input-quarantined',
+    'false',
+  );
+  await expect(page.locator('#phaser-layer')).toHaveAttribute('data-mini-game-status', 'playing');
   await page.keyboard.press('a');
   await page.keyboard.press('d');
   await page.keyboard.press('a');

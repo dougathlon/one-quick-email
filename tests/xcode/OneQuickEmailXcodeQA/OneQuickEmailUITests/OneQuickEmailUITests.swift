@@ -40,7 +40,7 @@ final class OneQuickEmailUITests: XCTestCase {
         }
     }
 
-    func testHeldTouchCannotStrandTheMiniGameTransition() throws {
+    func testHeldTouchAndOrphanedKeyCannotStrandTheMiniGameTransition() throws {
         let app = XCUIApplication()
         app.launch()
 
@@ -62,6 +62,7 @@ final class OneQuickEmailUITests: XCTestCase {
         XCTAssertTrue(finalTrace.contains("minigame:playing"), finalTrace)
         XCTAssertTrue(finalTrace.contains("compose:timeout"), finalTrace)
         XCTAssertTrue(finalTrace.contains("\"draft\":\"a\""), finalTrace)
+        XCTAssertTrue(finalTrace.contains("\"sawKeyboardQuarantine\":true"), finalTrace)
 
         XCTContext.runActivity(named: "Returned compose screen after held touch") { activity in
             let attachment = XCTAttachment(screenshot: app.screenshot())

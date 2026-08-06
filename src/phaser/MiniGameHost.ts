@@ -47,13 +47,15 @@ const SCENES = [
   BadgeScanScene,
 ] as const;
 
-const physicallyHeldKeys = new Set<string>();
+export const MINI_GAME_HELD_KEY_STALE_MS = 1_500;
+
+const physicallyHeldKeys = new Map<string, number>();
 const physicallyHeldPointers = new Set<number>();
 let physicalInputTrackingActive = false;
 let physicalInputTrackingLeaseCount = 0;
 
 const trackPhysicalKeyDown = (event: KeyboardEvent): void => {
-  physicallyHeldKeys.add(event.code || event.key);
+  physicallyHeldKeys.set(event.code || event.key, performance.now());
 };
 
 const trackPhysicalKeyUp = (event: KeyboardEvent): void => {
@@ -62,6 +64,13 @@ const trackPhysicalKeyUp = (event: KeyboardEvent): void => {
 
 const clearPhysicalKeys = (): void => {
   physicallyHeldKeys.clear();
+};
+
+const pruneStalePhysicalKeys = (): void => {
+  const staleBefore = performance.now() - MINI_GAME_HELD_KEY_STALE_MS;
+  for (const [key, lastKeyDownAt] of physicallyHeldKeys) {
+    if (lastKeyDownAt <= staleBefore) physicallyHeldKeys.delete(key);
+  }
 };
 
 const isTouchLikePointer = (event: PointerEvent): boolean => (
@@ -147,6 +156,7 @@ export function retainMiniGamePhysicalInputTracking(): () => void {
 }
 
 export function hasPhysicallyHeldMiniGameKeys(): boolean {
+  pruneStalePhysicalKeys();
   return physicallyHeldKeys.size > 0;
 }
 
@@ -362,7 +372,8 @@ export class MiniGameHost {
     if (!(scene instanceof BaseMiniGameScene)) {
       throw new Error(`Mini-game scene is not registered: ${definition.sceneKey}`);
     }
-    scene.primeBriefingHeldKeys(physicallyHeldKeys);
+    pruneStalePhysicalKeys();
+    scene.primeBriefingHeldKeys(physicallyHeldKeys.keys());
     scene.primeBriefingHeldPointers(physicallyHeldPointers);
 
     const onPlayStarted = (): void => {
@@ -407,7 +418,7 @@ export class MiniGameHost {
     this.active = null;
     this.launching = null;
     this.game.scene.stop(definition.sceneKey);
-    clearPhysicalPointers();
+    clearPhysicalInputs();
     this.parent.dataset.miniGameStatus = outcome;
     this.parent.setAttribute('aria-label', `${definition.title}: ${outcome}`);
     request.onComplete(outcome);

@@ -20,6 +20,7 @@ import type {
 import { canSend, countWords } from '../game/wordCount';
 import {
   hasPhysicallyHeldMiniGameKeys,
+  MINI_GAME_HELD_KEY_STALE_MS,
   MiniGameHost,
   retainMiniGamePhysicalInputTracking,
 } from '../phaser/MiniGameHost';
@@ -78,9 +79,10 @@ export class AppController {
   private inboxTimer: ReturnType<typeof setTimeout> | null = null;
   private inboxRemaining = REPLY_DELAY_MS;
   private inboxLastTick = 0;
-  private readonly heldMiniGameKeys = new Set<string>();
+  private readonly heldMiniGameKeys = new Map<string, number>();
   private miniGameInputShieldInstalled = false;
   private pendingEditorRestore = false;
+  private miniGameReturnTimer: ReturnType<typeof setTimeout> | null = null;
   private destroyed = false;
 
   constructor(root: HTMLElement, phaserLayer: HTMLElement) {
@@ -243,6 +245,7 @@ export class AppController {
   }
 
   private removeMiniGameInputShield(): void {
+    this.clearMiniGameReturnTimer();
     if (this.miniGameInputShieldInstalled) {
       document.removeEventListener('keydown', this.handleMiniGameKeyDown, true);
       document.removeEventListener('keyup', this.handleMiniGameKeyUp, true);
@@ -255,7 +258,7 @@ export class AppController {
 
   private readonly handleMiniGameKeyDown = (event: KeyboardEvent): void => {
     if (this.state.phase === 'minigame') {
-      this.heldMiniGameKeys.add(event.code || event.key);
+      this.heldMiniGameKeys.set(event.code || event.key, performance.now());
       return;
     }
 
@@ -285,18 +288,39 @@ export class AppController {
   };
 
   private completeMiniGameReturnWhenKeysAreReleased(): void {
-    if (
-      !this.pendingEditorRestore
-      || this.heldMiniGameKeys.size > 0
-      || hasPhysicallyHeldMiniGameKeys()
-      || this.state.phase !== 'compose'
-    ) return;
+    this.pruneStaleMiniGameKeys();
+    if (!this.pendingEditorRestore || this.state.phase !== 'compose') return;
+    if (this.heldMiniGameKeys.size > 0 || hasPhysicallyHeldMiniGameKeys()) {
+      this.scheduleMiniGameReturnRetry();
+      return;
+    }
     this.pendingEditorRestore = false;
     this.removeMiniGameInputShield();
     this.restoreEditorSnapshot();
     if (this.state.interruptionStarted && !document.hidden) {
       this.scheduler.resumeWithFreshInterval();
     }
+  }
+
+  private pruneStaleMiniGameKeys(): void {
+    const staleBefore = performance.now() - MINI_GAME_HELD_KEY_STALE_MS;
+    for (const [key, lastKeyDownAt] of this.heldMiniGameKeys) {
+      if (lastKeyDownAt <= staleBefore) this.heldMiniGameKeys.delete(key);
+    }
+  }
+
+  private scheduleMiniGameReturnRetry(): void {
+    if (this.miniGameReturnTimer !== null) return;
+    this.miniGameReturnTimer = setTimeout(() => {
+      this.miniGameReturnTimer = null;
+      this.completeMiniGameReturnWhenKeysAreReleased();
+    }, 100);
+  }
+
+  private clearMiniGameReturnTimer(): void {
+    if (this.miniGameReturnTimer === null) return;
+    clearTimeout(this.miniGameReturnTimer);
+    this.miniGameReturnTimer = null;
   }
 
   private ensureMiniGameHost(): void {
